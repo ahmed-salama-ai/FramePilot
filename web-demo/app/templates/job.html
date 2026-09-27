@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Processing...</h2>
+<p id="stage">Waiting</p> <progress id="bar" value="0" max="100"></progress>
+<pre id="err" hidden></pre>
+
+<script>
+async function poll() {
+    const j = await (await fetch("/api/jobs/{{ job.id }}")).json();
+    const bar = document.getElementById("bar");
+    const stage = document.getElementById("stage");
+    const err = document.getElementById("err");
+    
+    bar.value = j.progress; 
+    stage.textContent = `${j.stage} · ${j.progress}%`;
+    
+    if (j.status === "done") location.href = `/results/${j.session_id}`;
+    else if (j.status === "error") { err.hidden = false; err.textContent = j.error; }
+    else setTimeout(poll, 2000);
+}
+poll();
+</script>
+{% endblock %}

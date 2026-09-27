@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex-between" style="margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">{{ project.name }}</h1>
+        <span class="text-muted">Session ID: {{ sid }} | Processing Complete</span>
+    </div>
+    <form method="POST" action="/api/projects/{{ sid }}/delete" onsubmit="return confirm('Delete this project permanently?');">
+        <button type="submit" class="btn btn-danger">Delete Project</button>
+    </form>
+</div>
+
+<div class="dashboard-layout">
+    
+    <!-- Left Column: Media & Analysis -->
+    <div class="main-content">
+        <div class="video-player-container">
+            <video id="player" controls src="/files/{{ sid }}/program_nocaps.mp4">
+                <track kind="subtitles" src="/files/{{ sid }}/captions.vtt" srclang="ar" label="Arabic + English" default>
+            </video>
+        </div>
+
+        <div class="action-bar">
+            <a href="/files/{{ sid }}/program.mp4" download class="btn">Download Edited Video</a>
+            <a href="/files/{{ sid }}/captions_ar.srt" download class="btn btn-outline">Arabic Subtitles (SRT)</a>
+            <a href="/files/{{ sid }}/captions_en.srt" download class="btn btn-outline">English Subtitles (SRT)</a>
+        </div>
+
+        <div class="card chart-container">
+            <h3>Camera Switching Analysis</h3>
+            <p class="text-muted">Interactive timeline displaying the AI confidence score for each camera angle. Click the chart to navigate the video.</p>
+            <canvas id="chart" height="80"></canvas>
+        </div>
+
+        <div class="card">
+            <div class="flex-between" style="margin-bottom: 1.5rem;">
+                <div>
+                    <h3 style="margin: 0;">Extracted Highlights</h3>
+                    <p class="text-muted" style="margin: 0;">Short-form content automatically curated based on conversational engagement.</p>
+                </div>
+            </div>
+            
+            <div id="highlights-gallery" class="gallery-grid"></div>
+        </div>
+    </div>
+
+    <!-- Right Column: AI Assistant (Sticky) -->
+    <div class="agent-sidebar card" style="padding: 0;">
+        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); background: #f8fafc; border-radius: 12px 12px 0 0;">
+            <h3 style="margin: 0; display:flex; align-items:center; gap:0.5rem; color: var(--primary-color);">
+                <svg style="width:24px; height:24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                AI Video Assistant
+            </h3>
+            <p class="text-muted" style="margin: 0; font-size: 0.9rem; margin-top: 0.5rem;">Interact with your footage. Request specific topics to be extracted into new clips.</p>
+        </div>
+        
+        <div id="chat" class="chat-container">
+            <div class="msg Agent">
+                Hello! The video processing is complete. What specific clips would you like me to extract? For example, type "Extract the discussion about salaries".
+            </div>
+        </div>
+        
+        <form id="ask" class="chat-input-area">
+            <input id="msg" placeholder="Type your request here..." autocomplete="off" required>
+            <button type="submit" style="padding: 0.75rem 1.5rem;">Send</button>
+        </form>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script type="module">
+    try {
+        const tl = await (await fetch("/files/{{ sid }}/timeline.json")).json();
+        new Chart(document.getElementById("chart"), {
+            type: "line",
+            data: { 
+                labels: tl.t, 
+                datasets: Object.entries(tl.scores).map(([cam, ys], idx) => {
+                    const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444'];
+                    return { 
+                        label: "Camera " + cam, 
+                        data: ys, 
+                        pointRadius: 0, 
+                        borderWidth: 2,
+                        borderColor: colors[idx % colors.length],
+                        backgroundColor: colors[idx % colors.length] + '15',
+                        fill: true
+                    };
+                }) 
+            },
+            options: { 
+                animation: { duration: 800 },
+                interaction: { mode: "index", intersect: false },
+                onClick: (e, els, chart) => { 
+                    const player = document.getElementById("player");
+                    player.currentTime = tl.t[chart.scales.x.getValueForPixel(e.x)]; 
+                } 
+            }
+        });
+    } catch(e) {}
+
+    fetch("/files/{{ sid }}/highlights.json").then(r => r.json()).then(hs => {
+        const gal = document.getElementById("highlights-gallery");
+        gal.innerHTML = hs.map(h => `
+            <div class="card highlight-item" style="padding: 1.25rem; box-shadow:none; border:1px solid var(--border-color);">
+                <strong style="display:block; color:var(--text-main); font-size: 1.1rem; margin-bottom: 0.25rem;">${h.title_en}</strong>
+                <span class="text-muted" style="font-size: 0.9rem;">${h.title_ar}</span>
+                <p style="margin-top: 1rem; font-size: 0.95rem; background: #f8fafc; padding: 0.75rem; border-radius: 8px; border-left: 3px solid var(--primary-color);">
+                    <strong>Context:</strong> ${h.hook}
+                </p>
+                <video controls src="/files/{{ sid }}/${h.files['16:9']}"></video>
+                <div style="display:flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <a href="/files/{{ sid }}/${h.files['16:9']}" download class="btn btn-outline" style="flex:1; padding:0.5rem; font-size:0.85rem;">Download 16:9</a>
+                    <a href="/files/{{ sid }}/${h.files['9:16']}" download class="btn btn-outline" style="flex:1; padding:0.5rem; font-size:0.85rem;">Download 9:16</a>
+                </div>
+            </div>
+        `).join("");
+    }).catch(e => {
+        document.getElementById("highlights-gallery").innerHTML = "<p class='text-muted'>No highlights curated for this session.</p>";
+    });
+</script>
+
+<script>
+    const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    function bubble(who, html) { 
+        const chat = document.getElementById("chat");
+        const d = document.createElement("div"); 
+        d.className = "msg " + who;
+        d.innerHTML = html; 
+        chat.append(d); 
+        chat.scrollTop = chat.scrollHeight;
+        return d; 
+    }
+    
+    document.getElementById("ask").onsubmit = async e => {
+        e.preventDefault(); 
+        const msg = document.getElementById("msg");
+        const text = msg.value.trim(); 
+        if (!text) return;
+        
+        bubble("User", esc(text)); 
+        msg.value = "";
+        
+        const b = bubble("Agent", `<span style="color: var(--text-muted);">Processing request...</span>`);
+        
+        try {
+            const r = await fetch("/api/agent/{{ sid }}", { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: text }) 
+            });
+            
+            if (!r.ok) { 
+                b.textContent = (await r.json()).detail || "Error processing request."; 
+                return; 
+            }
+            const j = await r.json();
+            
+            let stepsHtml = j.steps.map(s => `<div style="font-size: 0.85rem; color: var(--text-muted); background: #ffffff; padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.5rem; border: 1px solid var(--border-color);"><strong>Action:</strong> ${esc(s.summary)}</div>`).join("");
+            let responseHtml = `<p style="margin: 0.5rem 0;">${esc(j.reply)}</p>`;
+            let clipsHtml = j.clips.map(c => `<video controls src="/files/{{ sid }}/${c.file}" style="width:100%; border-radius:8px; margin-top:0.5rem; background:#000;"></video><a href="/files/{{ sid }}/${c.file}" download class="btn btn-outline" style="display:block; margin-top:0.5rem; padding:0.5rem;">Download Clip</a>`).join("");
+            
+            b.innerHTML = stepsHtml + responseHtml + clipsHtml;
+            document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
+        } catch(err) {
+            b.textContent = "Network error. Please try again.";
+        }
+    };
+</script>
+{% endblock %}
