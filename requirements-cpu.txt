@@ -1,0 +1,10 @@
+# Light install for laptops without a GPU: ingest, scorer, switcher, render, evaluation, mock session, tests.
+numpy
+pandas
+pyarrow
+scipy
+soundfile
+pyyaml
+pydantic
+tqdm
+pytest

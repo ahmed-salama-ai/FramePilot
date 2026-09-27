@@ -1,0 +1,43 @@
+1
+00:00:01,000 --> 00:00:05,500
+Host: Welcome to a new episode of the podcast
+
+2
+00:00:05,800 --> 00:00:11,800
+Host: Today we talk about the first job and salaries
+
+3
+00:00:12,500 --> 00:00:17,500
+Guest: First, your CV should be one page only
+
+4
+00:00:17,800 --> 00:00:22,400
+Guest: And focus on the projects you built yourself
+
+5
+00:00:22,600 --> 00:00:27,000
+Guest: Companies like to see real work
+
+6
+00:00:27,500 --> 00:00:33,000
+Host: And salaries? People always ask about the salary
+
+7
+00:00:38,000 --> 00:00:43,500
+Guest: Honestly, the first-year salary is not the most important thing
+
+8
+00:00:43,800 --> 00:00:48,000
+Guest: What matters is learning from skilled people
+
+9
+00:00:48,200 --> 00:00:52,000
+Guest: After two years the salary changes a lot
+
+10
+00:00:52,500 --> 00:00:56,000
+Host: Great words, thank you
+
+11
+00:00:56,300 --> 00:00:59,500
+Host: See you in the next episode

@@ -1,0 +1,41 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Secrets (your Hugging Face token etc.)
+.env
+
+# Data: videos, sessions, database (never commit these)
+data/
+*.mp4
+*.MOV
+*.mov
+*.wav
+*.mp3
+*.parquet
+*.db
+
+# Model weights (downloaded automatically, and big)
+*.pt
+*.task
+*.onnx
+
+# Temp files
+tmp/
+check.mp4
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Mock session IS committed (tiny files everyone needs)
+!samples/mock_s00/
+!samples/mock_s00/**
+
+docs/
+instructions/

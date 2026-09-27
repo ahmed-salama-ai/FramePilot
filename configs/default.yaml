@@ -1,0 +1,26 @@
+# Shared settings. Ask Ahmed Salama before changing anything here.
+
+fps: 30          # every synced video is forced to constant 30 fps
+step: 0.1        # seconds between rows in features.parquet / scores.parquet / labels.csv
+
+ingest:
+  sample_rate: 16000   # audio.wav: 16 kHz mono
+  sync_seconds: 60     # search the clap in the first N seconds
+  render_height: 720   # video/camN.mp4 (render)
+  proxy_width: 640     # video/camN_640.mp4 (perception)
+
+scorer:
+  weights: {speaker: 3.0, frontal: 1.0, quality: 0.8, gesture: 0.5, shake: 1.0}
+  face_full: 0.15      # face_area at which the speaker term is at full strength
+
+switcher:
+  min_shot: 2.0        # rule 1: never cut before 2 s
+  margin: 0.2          # challenger must be 20% better
+  hold: 0.4            # ... for 0.4 s
+  max_shot: 15.0       # rule 3: variety
+  low_score: 0.3       # rule 4: all scores low -> wide
+
+ollama:
+  text_model: qwen3:8b      # plan B: qwen3:4b
+  vision_model: qwen3-vl:4b # plan B: gemma3:4b
+  embed_model: bge-m3

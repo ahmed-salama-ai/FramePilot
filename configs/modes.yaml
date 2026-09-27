@@ -1,0 +1,6 @@
+# Score multiplier per director mode and camera role (Architecture §5).
+# Agreed by Ahmed Salama + Eslam. Modes come from scene.jsonl.
+conversation: {wide: 0.8, closeup: 1.0}   # normal talk: close-ups of the speaker
+reaction:     {wide: 1.0, closeup: 1.2}   # laughing / surprise: show faces
+wide_energy:  {wide: 1.6, closeup: 0.8}   # many people react, someone stands up
+demo:         {wide: 1.3, closeup: 0.9}   # showing a product or a screen

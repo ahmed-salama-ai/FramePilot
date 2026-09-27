@@ -1,0 +1,25 @@
+# Full list (Team Guide §7-E). On a GPU machine install PyTorch with CUDA FIRST (see README).
+# Laptop without a GPU, only CPU stages (ingest, director, eval, mock)? Install requirements-cpu.txt instead.
+numpy
+pandas
+pyarrow
+scipy
+soundfile
+pyyaml
+pydantic
+tqdm
+opencv-python
+ultralytics
+mediapipe
+faster-whisper
+silero-vad
+jiwer
+pyannote.audio
+panns-inference
+ollama
+fastapi
+uvicorn
+jinja2
+python-multipart
+edge-tts
+pytest
