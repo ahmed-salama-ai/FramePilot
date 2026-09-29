@@ -1,0 +1,70 @@
+# ai_director/director/run.py — stage 5: scores + who is talking -> cuts.json
+#   python -m ai_director.director.run data/sessions/s01
+import yaml
+
+from ai_director.common.io import read_json, session_from_argv, write_json
+from ai_director.common.paths import CONFIGS
+from ai_director.director.scorer import score
+from ai_director.director.switcher import Switcher
+
+RULES = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["switcher"]
+STEP = 0.1
+
+
+def speaker_cam_at(times, diar, spk_map):
+    """For every time: the camera of the person talking (None = nobody, or not in a close-up)."""
+    out = [None] * len(times)
+    for seg in diar:
+        cam = spk_map.get(seg["speaker"])
+        for i, t in enumerate(times):
+            if seg["start"] <= t < seg["end"]:
+                out[i] = cam
+    return out                      # simple version; fine for 10-minute videos
+
+
+def to_segments(on_air, step=STEP):
+    """[(t, cam), ...] every 0.1 s -> cut list [{start, end, cam}]."""
+    cuts = []
+    for t, cam in on_air:
+        if cuts and cuts[-1]["cam"] == cam:
+            cuts[-1]["end"] = round(t + step, 2)
+        else:
+            cuts.append({"start": round(t, 2), "end": round(t + step, 2), "cam": cam})
+    return cuts
+
+
+def decide(s, boost=None, force_mode=None):
+    """Run the scorer and the switcher. Returns (cuts, scores)."""
+    cams = read_json(s / "session.json")["cameras"]
+    wide = next(c["id"] for c in cams if c["role"] == "wide")
+    sc = score(s, boost=boost, force_mode=force_mode)
+    table = sc.pivot(index="t", columns="cam", values="score")       # rows = times, columns = cameras
+    times = list(table.index)
+    diar = read_json(s / "diarization.json") if (s / "diarization.json").exists() else []
+    spk_map = read_json(s / "speaker_map.json") if (s / "speaker_map.json").exists() else {}
+    speakers = speaker_cam_at(times, diar, spk_map)
+
+    sw = Switcher({**RULES, "wide_cam": wide}, start_cam=wide)      # always start on the wide shot
+    on_air = []
+    for (t, row), spk in zip(table.iterrows(), speakers):
+        scores = {int(cam): float(v) for cam, v in row.items()}
+        on_air.append((t, sw.step(t, scores, spk)))
+    return to_segments(on_air), sc
+
+
+def make_cuts(s, boost=None, force_mode=None, out="cuts.json"):
+    """Used by the Editor Agent (Day 8): a new cut list with a boost or a fixed mode."""
+    cuts, _ = decide(s, boost, force_mode)
+    write_json(s / out, cuts)
+    return cuts
+
+
+if __name__ == "__main__":
+    s = session_from_argv()
+    cuts, sc = decide(s)
+    sc.to_parquet(s / "scores.parquet", index=False)
+    write_json(s / "cuts.json", cuts)                                # written LAST: the "done" file
+    shots = [c["end"] - c["start"] for c in cuts]
+    print(f"{len(cuts)} shots, average {sum(shots) / len(shots):.1f} s, shortest {min(shots):.1f} s")
+    for c in cuts:
+        print(f"  {c['start']:6.1f} -> {c['end']:6.1f}  cam {c['cam']}")
