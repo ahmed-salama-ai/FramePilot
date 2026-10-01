@@ -1,4 +1,3 @@
-# ai_director/director/run.py — stage 5: scores + who is talking -> cuts.json
 #   python -m ai_director.director.run data/sessions/s01
 import yaml
 
@@ -59,10 +58,26 @@ def make_cuts(s, boost=None, force_mode=None, out="cuts.json"):
     return cuts
 
 
+def on_air_at(cuts, t):
+    """The camera on air at time t (the last shot also covers the very end)."""
+    return next(c["cam"] for c in cuts if c["start"] <= t < c["end"] or c is cuts[-1])
+
+
+def make_timeline(sc, cuts):
+    """1 value per second for the website chart: average score per camera, camera on air, mode."""
+    sec = sc.assign(s=sc.t.astype(int))                              # 12.7 s -> second 12
+    avg = sec.groupby(["s", "cam"]).score.mean().unstack()           # rows = seconds, columns = cameras
+    modes = sec.groupby("s")["mode"].first()                         # the mode at the start of each second
+    return {"t": [float(s) for s in avg.index],
+            "scores": {str(cam): [round(float(v), 3) for v in avg[cam]] for cam in avg.columns},
+            "on_air": [on_air_at(cuts, float(s)) for s in avg.index],
+            "mode": [modes[s] for s in avg.index]}
+
 if __name__ == "__main__":
     s = session_from_argv()
     cuts, sc = decide(s)
     sc.to_parquet(s / "scores.parquet", index=False)
+    write_json(s / "timeline.json", make_timeline(sc, cuts))         # for Ahmed Sameh's chart
     write_json(s / "cuts.json", cuts)                                # written LAST: the "done" file
     shots = [c["end"] - c["start"] for c in cuts]
     print(f"{len(cuts)} shots, average {sum(shots) / len(shots):.1f} s, shortest {min(shots):.1f} s")
