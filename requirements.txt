@@ -11,7 +11,7 @@ tqdm
 opencv-python
 ultralytics
 mediapipe
-faster-whisper
+faster-whisper>=1.1        # needs hotwords + hallucination_silence_threshold (tested with 1.2.1)
 silero-vad
 jiwer
 pyannote.audio

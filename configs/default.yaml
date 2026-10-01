@@ -20,6 +20,16 @@ switcher:
   max_shot: 15.0       # rule 3: variety
   low_score: 0.3       # rule 4: all scores low -> wide
 
+audio:
+  # Whisper model per session language. After the bake-off (eval/bakeoff.py), put the winner here.
+  asr_models: {ar: large-v3-turbo, en: large-v3-turbo}
+  # Clean a COPY of audio.wav before Whisper (tmp/audio_asr.wav); audio.wav itself never changes.
+  # highpass = remove low rumble (AC, fan, traffic) · afftdn = reduce steady noise · loudnorm = normal voice level
+  # afftdn delays the sound by 25 ms: atrim removes it and apad adds it back at the end -> same length,
+  # 0 ms shift (measured on s01-s03), so the word times still match the videos.
+  clean_audio: true
+  asr_filter: "highpass=f=100,afftdn=nf=-30,atrim=start=0.025,asetpts=PTS-STARTPTS,apad=pad_dur=0.025,loudnorm=I=-20:TP=-2"
+
 ollama:
   text_model: qwen3:8b      # plan B: qwen3:4b
   vision_model: qwen3-vl:4b # plan B: gemma3:4b
