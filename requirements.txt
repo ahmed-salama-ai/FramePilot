@@ -21,5 +21,6 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-edge-tts
+edge-tts        
 pytest
+transformers

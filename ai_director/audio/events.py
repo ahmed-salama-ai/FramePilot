@@ -4,6 +4,24 @@ import numpy as np
 import soundfile as sf
 import torch
 from scipy.signal import resample_poly
+
+import urllib.request
+PANNS_DIR = Path.home() / "panns_data"
+PANNS_FILES = {
+    "class_labels_indices.csv": "http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/class_labels_indices.csv",
+    "Cnn14_mAP=0.431.pth": "https://zenodo.org/record/3987831/files/Cnn14_mAP%3D0.431.pth?download=1",
+}
+
+def ensure_panns_files():
+    """panns_inference downloads with 'wget', which Windows doesn't have, so we download the files ourselves."""
+    PANNS_DIR.mkdir(exist_ok=True)
+    for name, url in PANNS_FILES.items():
+        path = PANNS_DIR / name
+        if not path.exists() or path.stat().st_size == 0:
+            print(f"Downloading {name} ...")
+            urllib.request.urlretrieve(url, path)
+
+ensure_panns_files()
 from panns_inference import AudioTagging, labels
 from ..common.io import write_json
 
