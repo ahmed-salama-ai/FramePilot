@@ -38,12 +38,16 @@ Eslam ElKharbotly (AI brain, Editor Agent). Repo: github.com/ahmedsa12/FramePilo
 - `ai_director/director/` scorer.py (weights from configs), switcher.py (5 rules; time diffs are ROUNDED —
   fixes a float bug in the guide), run.py (decide/make_cuts/make_timeline → scores.parquet, timeline.json,
   cuts.json last), render.py (render_program + add_captions; program.mp4 is the done file), baselines.py.
-- `ai_director/audio/` Nada's code, edited (see "Audio" below).
-- `eval/` wer.py, bakeoff.py, wer_set.json (placeholder references).
+- `ai_director/audio/` Nada's code, taken over by Ahmed: vad.py (Silero; reads audio with soundfile, so no
+  torchaudio/torchcodec needed) · asr.py (**Gemini 3.5 Transcribe**: text +
+  word times + speakers → transcript.json + diarization.json) · speakers.py (roles → speakers.json) · gemini.py
+  (API keys) · voices.py (same voice across pieces) · translate.py · subtitles.py · events.py · run.py. pyannote/diarize.py was removed.
+- `eval/` wer.py, wer_set.json (placeholder references). The old Whisper bake-off (bakeoff.py) was deleted
+  2026-10-05; `audio/convert_model.py` is unused (never committed; Ahmed may delete it).
 - `configs/default.yaml` (fps, sync, scorer weights, switcher rules, audio models, ollama names), modes.yaml.
 - `samples/mock_s00/` fake 60 s session with EVERY contract file (+ `samples/make_mock.py`). **Never write
   outputs into it** — copy it to `data/sessions/s00` to try stages.
-- `tests/` — `.venv\Scripts\python.exe -m pytest -q` → **27 passed** at handoff (2026-10-01).
+- `tests/` — `.venv\Scripts\python.exe -m pytest -q` → **35 passed** (2026-10-05).
 - Not in Git: `data/` (videos, sessions), `.venv`, models.
 
 ## Data (must be copied to the new PC — not in Git)
@@ -62,13 +66,37 @@ From the team Google Drive into `data/sessions/`:
 - Day 1 ✅ repo, contracts, mock, checker · Day 2 ✅ recordings · Day 3 ✅ ingest+sync on s01–s03 (shared on
   Drive) · Day 4 ✅ scorer · Day 5 ✅ switcher + director stage · Day 6 ✅ render, baselines, timeline
   (mock: 6 shots, 85% agreement vs 45.5% random, 10% wide; frame-accurate; real s01 render ≈ 7 min on CPU).
-- Audio (Nada's part) — code integrated 2026-10-01, **GPU run + bake-off still to do** (next task).
+- Audio — **decided 2026-10-05: Gemini 3.5 Transcribe** (see "Audio" below); first real run on s01–s03 still to do.
 - Next in the plan: Day 7 `ai_director/pipeline.py` (stages as subprocesses, skip if done file exists;
   STAGES table in Ahmed's guide p.8) · Day 8 `render_clip()` (guide p.8; `make_cuts` already exists) +
   first full run on s01 · Day 9 full runs s02/s03 · Day 10 `eval/director_eval.py` · Day 11 tuning
   (tune on s01+s02, report on s03) · Day 12 freeze · Days 13–14 A/B viewer test.
 
-## Audio (current work) — what was changed in Nada's code and why
+## Audio — DECIDED (2026-10-05): Gemini 3.5 Transcribe, no Whisper, no pyannote
+- After the Colab bake-offs (notebooks parts 1–8) Ahmed chose **`gemini-3.5-transcribe`** (Google cloud) for
+  speech-to-text AND diarization. One request (Interactions API, `client.interactions.create`, audio uploaded with
+  the Files API, `transcription_config: {language_codes: [ar-EG], mode: {type: verbatim, diarization_mode: speaker,
+  timestamp_granularities: [word]}}`) returns `word_info` items (text, start_offset "1.23s", end_offset, speaker
+  "spk_1"). Original audio.wav, **no filter**. **Default `chunk_seconds: 0` = the FULL session in one request** (Ahmed, 2026-10-05;
+  max 30 min; keys only take over when one is busy). Optional pieces mode (`chunk_seconds:
+  60`), each cut in the speech.json silence nearest the minute mark (±`cut_search_seconds` 10, else quietest 50 ms),
+  shared between ALL keys in parallel (ThreadPoolExecutor, one worker per key, piece k starts at key k % n).
+  Gemini labels speakers per piece, so `voices.py` joins them: WavLM x-vector (`microsoft/wavlm-base-plus-sv`) per
+  (piece, speaker), Hungarian one-to-one match to known voices, new voice if cosine < `same_voice` 0.75 and fewer
+  than num_speakers. **The real WavLM model path is untested** (tests use fake fingerprints).
+  custom_vocabulary cannot be combined with diarization/word times (so no hint words now). Free tier unknown.
+- `asr.py` → transcript.json (rows split at speaker change / pause >1 s / 15 s) + diarization.json (built from the
+  word speakers, SPEAKER_00… by first appearance); raw answer cached in `tmp/gemini_asr_000.json` (re-run = free).
+- `speakers.py` → **new contract file `speakers.json`** [{speaker, role (host/co-host/guest/interviewer/
+  interviewee/moderator/panelist/presenter/audience/other), name, description}] from `gemini-3.1-flash-lite`
+  reading the transcript (schemas.SpeakerInfo, paths.SPEAKERS, check.py, mock). Tell the team (contract change).
+- Secrets in **`.env`** (repo root, git-ignored; template `.env.example`), read by `common/env.load_env()`
+  (a Windows env var wins): HF_TOKEN and ANY number of keys GEMINI_API_KEY, GEMINI_API_KEY_2, … (`key_names()`).
+  `gemini.with_keys()` rotates on 429/busy, drops a key on a daily limit. Silero VAD still makes speech.json.
+- Notebook results that led here: part 6 approach 2 (Gemini 3.1 text + pyannote) s01 0–29.4 s WER .273 / CER
+  .175, 99.1% speaker agreement; part 8 `gemini35_transcribe_session.ipynb` = Gemini 3.5 alone vs + pyannote.
+
+### History: the Whisper work (replaced, kept for the report)
 Diagnosis: recordings are noisy far-field phone audio (voices only ~10–12 dB above background, rumble
 <200 Hz); Whisper large-v3-turbo is weak on Egyptian → wrong/MSA words in s01, invented text in s03
 ("ترجمة نانسي قنقر", "اشتركوا في القناة"). English s02 was fine with the same audio.
@@ -86,23 +114,59 @@ Diagnosis: recordings are noisy far-field phone audio (voices only ~10–12 dB a
 - `eval/bakeoff.py`: `python -m eval.bakeoff <session> <start> <end> <ref.txt> <model ids…>` → WER/CER,
   invented-sentence count, seconds, for raw / clean / clean+hints.
 - Tested on CPU with whisper `small`: works end to end, contract OK. **Not yet tested with large models.**
-- Candidate "moeshawky/faster-whisper-small-egyptian-arabic" gave output IDENTICAL to plain `small` →
-  suspect; don't use. Other candidates: `large-v3`, Arabic/Egyptian fine-tunes from Hugging Face (convert
-  with `ct2-transformers-converter --model <id> --output_dir data/models/whisper-eg --quantization float16`).
+- **Chosen Arabic model (Ahmed, 2026-10-03): `maryamas222/whisper-large-v3-egyptian-lora-v4`** — a PEFT LoRA
+  adapter on openai/whisper-large-v3 (~72 h Egyptian, card reports 36.9% WER on its own test set, Egyptian
+  only, ~85% male training speakers). faster-whisper cannot load a LoRA, so it is merged + converted ONCE:
+  `python -m ai_director.audio.convert_model maryamas222/whisper-large-v3-egyptian-lora-v4 data/models/whisper-eg-v4`
+  (`ai_director/audio/convert_model.py`; needs transformers + peft + accelerate + torch; saves
+  preprocessor_config.json via WhisperFeatureExtractor because transformers 5 no longer writes it from the
+  processor — without it faster-whisper would use 80 instead of 128 mel bands). Config:
+  `asr_models: {ar: data/models/whisper-eg-v4, en: large-v3-turbo}`; `asr.model_path()` resolves data/... from
+  the repo root and errors clearly if not converted. Mechanics tested on CPU with whisper-tiny + a dummy LoRA;
+  the real large-v3 merge (≈3 GB download, ~7 GB RAM) has NOT been run yet. Still confirm it in the bake-off
+  (compare with large-v3-turbo and large-v3).
+- Candidate "moeshawky/faster-whisper-small-egyptian-arabic" gave output IDENTICAL to plain `small` → suspect.
+- **Colab notebooks (`notebooks/`)**, all share the pipeline's exact settings and RESULTS folder on Drive:
+  `egyptian_asr_colab.ipynb` (part 1: turbo, large-v3, turbo-dialectal, small-egy-codeswitch → MGB-3 WER:
+  39.6 / 41.6 / 39.1 / 54.9 %), `egyptian_asr_lora.ipynb` (part 2: 3 LoRAs merged+converted + mohammedaly22
+  turbo code-switch 40.2 %; needs `pip uninstall torchao` on Colab; appends to results_lora.csv),
+  `egyptian_asr_final.ipynb` (part 3, the deciding test: ALL 8 local models + Gemini 3.1 Flash Lite
+  (`gemini-3.1-flash-lite`), Groq whisper-large-v3/-turbo, optional Deepgram/ElevenLabs/OpenAI, on s01 0–29.4 s vs
+  Ahmed's hand-typed text (embedded in the notebook; also `eval/ref_s01_0-29.4.txt`, 44 words — his "first minute"
+  text really ends at 29.4 s); variants raw/clean/clean+hints/clean+chunks (~10 s pieces cut at the quietest 50 ms);
+  WER, CER + an LLM "meaning" judge 0–10 (Gemini, else Groq llama-3.3-70b)). API keys only via Colab Secrets
+  (GEMINI_API_KEY, GROQ_API_KEY, …) — never in cells or Git (a Deepgram key was pasted in chat on 2026-10-04: revoke).
+  google-genai 2.x: keep the Client object (an inline `genai.Client(...).models...` is closed before the request).
+  Part 3 result (s01 30 s, 44 words): Gemini 3.1 Flash Lite WER .295 (but invented a name), Deepgram Nova-3
+  .295 with chunks (raw = only one with the names right), local best mohammedaly22 / maryamas222 LoRA / large-v3
+  ≈ .50; dev-ahmedhany LoRA broken (multi-language garbage); filter helps large-v3-based models, hurts others.
+  `egyptian_asr_datasets.ipynb` (part 4, the decider): those 5 finalists on ~10 min of real Egyptian datasets with
+  ground truth (Casablanca-Egypt test 4 min, MGB-3 3 min, Egyptian-ASR-Test-YouTube 3 min; streamed in Colab only,
+  no sessions, no noise, no training) → WER/CER, per-clip LLM judge (5 results anonymised A–E per clip, Gemini judge
+  else Groq), gender split, side-by-side viewer.html. Ahmed's rule: never download datasets on his laptop (test
+  with fake rows). Pandas gotcha: use df["clip"], not df.clip (a method).
+  **Part 4 result (2026-10-04, 65 clips / 10.7 min, corpus WER | CER | judge meaning):** Gemini 3.1 Flash Lite
+  .278 | .135 | 8.9 *without* one runaway clip (it wrote 5,399 words for 54: "أه أه أه…" → WER 3.5 with it; strict
+  judge winner on 36/65 clips); Deepgram Nova-3 ar-EG .356 | .181 | 7.5 (3 empty outputs on clips < 4 s);
+  large-v3 .430; maryamas222 LoRA .441 (better on women 0.385 vs men 0.452); mohammedaly22 .459 (fastest, most
+  bad clips). Gemini also judged its own outputs (names hidden) — WER agrees it is best. Gemini needs a max
+  output length / runaway guard and gives no word timings (Qwen3-ForcedAligner does NOT support Arabic).
+  `egyptian_asr_qwen.ipynb` (part 5, not run yet; Ahmed asked not to test locally): Qwen3-8B is text-only, so it
+  tests Qwen3-ASR-1.7B/0.6B-hf + oddadmix/qwen3-asr-0.6b-arabic-dialectal (transformers
+  `Qwen3ASRForConditionalGeneration`, `proc.decode(..., return_format="transcription_only")`, fp16 on T4), and
+  Qwen3-8B (Ollama) as a corrector of Deepgram / large-v3 / LoRA transcripts; same 65 clips (checked against
+  part 4's clips.csv), one fresh judge round over all models, WER without runaway clips, viewer_all.html.
+  Confidence is not comparable across models; s01/s03 WER needs the reference text.
 - Do NOT commit Nada's stand-ins (`common/io.py`, `brain/llm_client.py`) — the repo has the real ones.
 
-## Next task on the GPU PC (guide Ahmed through it)
-1. Setup: `git pull`; `uv venv`; activate; install PyTorch with CUDA first
-   (`uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128`), then
-   `uv pip install -r requirements.txt`; check `python -c "import torch; print(torch.cuda.is_available())"`.
-   FFmpeg (`winget install Gyan.FFmpeg`), Ollama + `ollama pull qwen3:8b`. `HF_TOKEN` env var with the two
-   pyannote model pages accepted. Copy `data/sessions/s01-s03` from Drive (+ Nada's speech/diarization).
-2. In each session delete only transcript.json, captions_ar.srt, captions_en.srt, captions.vtt,
-   audio_events.json (keep speech.json, diarization.json) → `python -m ai_director.audio.run data/sessions/s01`.
-3. Bake-off: Ahmed hand-corrects minutes 0–5 of s01 into `eval/ref_s01.txt`, then
-   `python -m eval.bakeoff data/sessions/s01 0 300 eval/ref_s01.txt large-v3-turbo large-v3 [egyptian model]`.
-   Winner → `configs/default.yaml audio.asr_models.ar`; if raw beats clean → `clean_audio: false`.
-   Also check word timing in the captions (±0.3 s) and no invented sentences in s03.
+## Next task (guide Ahmed through it)
+1. Setup on any PC (no GPU needed for audio any more): `git pull`; `uv pip install -r requirements.txt`
+   (adds google-genai + transformers; faster-whisper/pyannote removed). Keys + HF token go in `.env` (repo root,
+   git-ignored): GEMINI_API_KEY, GEMINI_API_KEY_2, … as many as he has. Never in code, chat or Git.
+2. Per session: delete transcript.json, diarization.json, speakers.json, captions_*.srt, captions.vtt,
+   audio_events.json, tmp/gemini_asr_*.json (keep speech.json) → `python -m ai_director.audio.run data/sessions/s01`
+   → `python -m ai_director.common.check data/sessions/s01`. Listen to a few turns: speakers + word times (±0.3 s).
+3. Tell the team: diarization.json now comes from Gemini; new file speakers.json; no HF_TOKEN needed.
 4. Fill `eval/wer_set.json` (team task: 15 min Arabic, 10 min English) → `python eval/wer.py`.
 5. Then continue with Day 7 (pipeline.py), in the same guide-and-PDF style.
 

@@ -13,6 +13,7 @@ AUDIO = "audio.wav"                 # ①
 SPEECH = "speech.json"              # ③  audio
 DIARIZATION = "diarization.json"    # ③
 TRANSCRIPT = "transcript.json"      # ③
+SPEAKERS = "speakers.json"          # ③  who is each speaker (host, guest, ...)
 CAPTIONS_AR = "captions_ar.srt"     # ③
 CAPTIONS_EN = "captions_en.srt"     # ③
 CAPTIONS_VTT = "captions.vtt"       # ③

@@ -60,6 +60,13 @@ class TranscriptSegment(BaseModel):           # transcript.json item
     words: list[Word]
 
 
+class SpeakerInfo(BaseModel):                 # speakers.json item: who is each speaker
+    speaker: str                              # SPEAKER_00 (the same labels as transcript / diarization)
+    role: str                                 # host, co-host, guest, interviewer, interviewee, moderator, ... other
+    name: str = ""                            # if it is said in the recording (or given in upload.json)
+    description: str = ""                     # one sentence: what this person does in the conversation
+
+
 class AudioEvent(BaseModel):                  # audio_events.json item (one per second)
     t: int
     loudness_db: float

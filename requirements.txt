@@ -11,10 +11,10 @@ tqdm
 opencv-python
 ultralytics
 mediapipe
-faster-whisper>=1.1        # needs hotwords + hallucination_silence_threshold (tested with 1.2.1)
+google-genai               # Gemini 3.5 Transcribe (speech-to-text + speakers) and speaker roles
+transformers               # voice fingerprints (WavLM) that join the same speaker across pieces
 silero-vad
 jiwer
-pyannote.audio
 panns-inference
 ollama
 fastapi
@@ -23,4 +23,3 @@ jinja2
 python-multipart
 edge-tts        
 pytest
-transformers

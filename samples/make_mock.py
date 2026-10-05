@@ -199,6 +199,11 @@ def make_json_files():
                            "words": [{"w": w, "start": round(a + k * step, 2), "end": round(a + (k + 1) * step, 2)}
                                      for k, w in enumerate(words)]})
     write_json(OUT / "transcript.json", transcript)
+    write_json(OUT / "speakers.json", [
+        {"speaker": "SPEAKER_00", "role": "host", "name": NAMES["SPEAKER_00"],
+         "description": "Opens and closes the episode and asks about CVs and salaries."},
+        {"speaker": "SPEAKER_01", "role": "guest", "name": NAMES["SPEAKER_01"],
+         "description": "Gives advice on CVs, first jobs and salaries."}])
 
     def srt(lines_of):
         return "\n".join(f"{i}\n{ts(a)} --> {ts(b)}\n{lines_of(spk, ar, en)}\n"

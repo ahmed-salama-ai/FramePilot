@@ -1,0 +1,14 @@
+[
+  {
+    "speaker": "SPEAKER_00",
+    "role": "host",
+    "name": "Host",
+    "description": "Opens and closes the episode and asks about CVs and salaries."
+  },
+  {
+    "speaker": "SPEAKER_01",
+    "role": "guest",
+    "name": "Guest",
+    "description": "Gives advice on CVs, first jobs and salaries."
+  }
+]

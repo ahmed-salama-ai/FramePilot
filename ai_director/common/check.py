@@ -16,6 +16,7 @@ JSON_FILES = {  # file → (schema, owner)
     "speech.json": (list[S.Span], "audio"),
     "diarization.json": (list[S.DiarSegment], "audio"),
     "transcript.json": (list[S.TranscriptSegment], "audio"),
+    "speakers.json": (list[S.SpeakerInfo], "audio"),
     "audio_events.json": (list[S.AudioEvent], "audio"),
     "speaker_map.json": (dict[str, int], "perception"),
     "cuts.json": (list[S.Cut], "director"),

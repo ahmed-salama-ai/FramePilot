@@ -37,5 +37,7 @@ Thumbs.db
 !samples/mock_s00/
 !samples/mock_s00/**
 
+notebooks/
 docs/
 instructions/
+promo/

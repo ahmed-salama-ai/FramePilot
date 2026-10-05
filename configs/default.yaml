@@ -21,14 +21,22 @@ switcher:
   low_score: 0.3       # rule 4: all scores low -> wide
 
 audio:
-  # Whisper model per session language. After the bake-off (eval/bakeoff.py), put the winner here.
-  asr_models: {ar: large-v3-turbo, en: large-v3-turbo}
-  # Clean a COPY of audio.wav before Whisper (tmp/audio_asr.wav); audio.wav itself never changes.
-  # highpass = remove low rumble (AC, fan, traffic) · afftdn = reduce steady noise · loudnorm = normal voice level
-  # afftdn delays the sound by 25 ms: atrim removes it and apad adds it back at the end -> same length,
-  # 0 ms shift (measured on s01-s03), so the word times still match the videos.
-  clean_audio: true
-  asr_filter: "highpass=f=100,afftdn=nf=-30,atrim=start=0.025,asetpts=PTS-STARTPTS,apad=pad_dur=0.025,loudnorm=I=-20:TP=-2"
+  # Speech-to-text AND who speaks when: Gemini 3.5 Transcribe (Google cloud). Chosen 2026-10-05 after the Colab
+  # bake-offs (notebooks/, parts 1-8). It hears the ORIGINAL audio.wav (no filter) and gives every word with its
+  # time and speaker -> transcript.json + diarization.json. Silero VAD still makes speech.json; no pyannote.
+  asr_model: gemini-3.5-transcribe
+  language_codes: {ar: [ar-EG], en: [en-US]}   # [] = the model detects the language itself
+  # 0 = the FULL session in one request (max 30 min with speakers + word times; one key at a time, the others
+  # only take over when it is busy). 60 = ~1-minute pieces shared between all the keys at the same time.
+  chunk_seconds: 0
+  cut_search_seconds: 10      # pieces only: each cut goes in the silence nearest to the planned place, +-10 s
+  segment_max_seconds: 15     # transcript.json rows: split at a speaker change, a pause > 1 s, or after 15 s
+  # Gemini names the speakers of every piece separately -> voice fingerprints join the same voice across pieces
+  voice_model: microsoft/wavlm-base-plus-sv
+  same_voice: 0.75            # cosine similarity above this = the same person (only matters before num_speakers is reached)
+  speaker_model: gemini-3.1-flash-lite   # reads the transcript -> speakers.json (host, guest, ... + names)
+  # Keys live in the .env file (never in Git): GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, ... any number.
+  api_key_prefix: GEMINI_API_KEY
 
 ollama:
   text_model: qwen3:8b      # plan B: qwen3:4b

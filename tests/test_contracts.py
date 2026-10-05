@@ -4,7 +4,8 @@ from ai_director.common.io import read_json
 from ai_director.common.paths import MOCK
 
 EVERY_FILE = ["upload.json", "session.json", "audio.wav", "speech.json", "diarization.json", "transcript.json",
-              "captions_ar.srt", "captions_en.srt", "captions.vtt", "audio_events.json", "features.parquet",
+              "speakers.json", "captions_ar.srt", "captions_en.srt", "captions.vtt", "audio_events.json",
+              "features.parquet",
               "speaker_map.json", "scene.jsonl", "scores.parquet", "cuts.json", "timeline.json",
               "program_nocaps.mp4", "program.mp4", "highlights.json", "clips.json", "labels.csv",
               "highlight_labels.csv", "metrics.json"]
