@@ -1,6 +1,7 @@
-# ai_director/director/render.py — stage 6: cut list -> the edited video (program.mp4)
+# ai_director/director/render.py — stage 6: cut list -> the edited video (program.mp4); render_clip() for clips
 #   python -m ai_director.director.render data/sessions/s01
 import shutil
+from pathlib import Path
 
 from ai_director.common.io import read_json, run, session_from_argv
 
@@ -37,6 +38,41 @@ def add_captions(session_dir, inp="program_nocaps.mp4", out="program.mp4"):
         burn_captions(session_dir, inp, out)
     else:
         shutil.copyfile(session_dir / inp, session_dir / out)
+
+
+def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop_x=None, langs="ar+en"):
+    """One short clip (Day 8), used by Highlights (Sara) and the Editor Agent (Eslam).
+    source = "program" (the AI edit) or a camera id (e.g. 3 = only that camera).
+    fmt = "16:9" (1280x720, YouTube) or "9:16" (720x1280, TikTok / Reels).
+    crop_x = where the face is, 0..1 (features.face_x), for the 9:16 crop. langs = "ar", "en", "ar+en" or "none".
+    out = a path inside the session folder, e.g. "highlights/h1_916.mp4"."""
+    from ai_director.audio.subtitles import FORCE_STYLE, write_clip_srt      # Nada's caption code
+    meta = read_json(session_dir / "session.json")
+    if not 0 <= start < end <= meta["duration"] + 0.05:
+        raise ValueError(f"clip {start}-{end} s is not inside the video (0-{meta['duration']} s)")
+    if fmt not in ("16:9", "9:16"):
+        raise ValueError(f"fmt must be '16:9' or '9:16', not {fmt!r}")
+    video = "program_nocaps.mp4" if source == "program" else f"video/cam{source}.mp4"
+    (session_dir / out).parent.mkdir(parents=True, exist_ok=True)
+    (session_dir / "tmp").mkdir(exist_ok=True)
+    vf, style = [], FORCE_STYLE
+    if fmt == "9:16":                                  # 1280x720 -> a 404x720 strip around the face -> 720x1280
+        x = 438 if crop_x is None else int(min(max(crop_x * 1280 - 202, 0), 1280 - 404))
+        vf.append(f"crop=404:720:{x}:0,scale=720:1280")
+        style = style.replace("FontSize=15", "FontSize=9")    # captions scale with the height: smaller on tall video
+    srt = session_dir / "tmp" / f"{Path(out).stem}.srt"
+    if langs != "none":
+        write_clip_srt(session_dir, start, end, langs, srt)   # caption times shifted so the clip starts at 0
+        vf.append(f"subtitles=tmp/{srt.name}:force_style='{style}'")
+    cmd = ["ffmpeg", "-y", "-ss", f"{start:.2f}", "-i", video,
+           "-ss", f"{start:.2f}", "-i", f"video/cam{meta['reference_cam']}.mp4",   # the sound of the reference camera
+           "-t", f"{end - start:.2f}", "-map", "0:v", "-map", "1:a"]
+    if vf:
+        cmd += ["-vf", ",".join(vf)]
+    run(cmd + ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac",
+               "-movflags", "+faststart", out], cwd=session_dir)                   # faststart: plays in a browser at once
+    srt.unlink(missing_ok=True)
+    return session_dir / out
 
 
 if __name__ == "__main__":
