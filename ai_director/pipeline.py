@@ -16,7 +16,7 @@ STAGES = [   # (name shown in the web app, python module, the stage's "done" fil
     ("Ingest + Sync",    "ai_director.ingest.run",      "session.json",      True),
     ("Audio + Captions", "ai_director.audio.run",       "audio_events.json", True),
     ("Perception",       "ai_director.perception.run",  "speaker_map.json",  True),
-    ("AI Brain",         "ai_director.brain.run",       "scene.jsonl",       False),   # Eslam, not built yet
+    ("AI Brain",         "ai_director.brain.run",       "scene.jsonl",       False),   # Eslam; needs Ollama
     ("Switching",        "ai_director.director.run",    "cuts.json",         True),
     ("Render",           "ai_director.director.render", "program.mp4",       True),
     ("Highlights",       "ai_director.highlights.run",  "highlights.json",   False),   # later
@@ -68,10 +68,14 @@ def run_pipeline(session_dir, on_progress=lambda stage, pct: print(f"  [{pct:3d}
         t0 = time.time()
         code = run_stage(session_dir, module, log)
         secs = round(time.time() - t0, 1)
-        if code != 0:
-            raise RuntimeError(f"{name} failed after {secs} s (full output: {log}):\n{tail(log)}")
-        if not (session_dir / done_file).exists():
-            raise RuntimeError(f"{name} ended without writing {done_file} (see {log})")
+        problem = (f"failed after {secs} s" if code != 0 else
+                   f"ended without writing {done_file}" if not (session_dir / done_file).exists() else None)
+        if problem and required:
+            raise RuntimeError(f"{name} {problem} (full output: {log}):\n{tail(log)}")
+        if problem:                          # an optional stage (e.g. AI Brain without Ollama): the video can still
+            print(f"  WARNING: {name} {problem}, continuing without it (see {log})", flush=True)   # be made
+            report.append((name, f"FAILED (optional, see {log.name})", secs))
+            continue
         report.append((name, "done", secs))
     on_progress("Done", 100)
     with open(logs / "pipeline.log", "a", encoding="utf-8") as f:     # one line per run: the history + times

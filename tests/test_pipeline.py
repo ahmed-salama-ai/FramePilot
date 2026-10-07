@@ -64,6 +64,12 @@ def test_a_stage_must_write_its_done_file(fake, monkeypatch):
         pl.run_pipeline(fake, lambda *a: None)
 
 
+def test_a_failing_optional_stage_is_only_a_warning(fake, monkeypatch):
+    use(monkeypatch, ("Brain", "fakestages.crash", "x.json", False), ("B", "fakestages.write_b", "b.json", True))
+    report = pl.run_pipeline(fake, lambda *a: None)
+    assert [s for _, s, _ in report] == ["FAILED (optional, see 1_brain.log)", "done"]   # B still ran
+
+
 def test_missing_modules(fake, monkeypatch):
     use(monkeypatch, ("Later", "fakestages.not_built", "z.json", False), ("B", "fakestages.write_b", "b.json", True))
     assert [s for _, s, _ in pl.run_pipeline(fake, lambda *a: None)] == ["skipped (not built yet)", "done"]

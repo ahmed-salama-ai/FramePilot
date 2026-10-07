@@ -39,6 +39,11 @@ audio:
   api_key_prefix: GEMINI_API_KEY
 
 ollama:
-  text_model: qwen3:8b      # plan B: qwen3:4b
-  vision_model: qwen3-vl:4b # plan B: gemma3:4b
+  text_model: qwen3:8b      # plan B: qwen3:4b (translation, highlight titles, the agent)
+  vision_model: moondream   # AI Brain. TESTING for now (small, English only); planned: qwen3-vl:4b, plan B: gemma3:4b
   embed_model: bge-m3
+
+brain:
+  every_seconds: 5          # one scene.jsonl line every 5 s of video
+  text_window: 10           # what was said in the 10 s before each moment goes into the prompt
+  english_text: true        # Arabic sessions: send the ENGLISH translation (moondream only understands English)

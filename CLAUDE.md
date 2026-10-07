@@ -42,6 +42,15 @@ Eslam ElKharbotly (AI brain, Editor Agent). Repo: github.com/ahmedsa12/FramePilo
   torchaudio/torchcodec needed) · asr.py (**Gemini 3.5 Transcribe**: text +
   word times + speakers → transcript.json + diarization.json) · speakers.py (roles → speakers.json) · gemini.py
   (API keys) · voices.py (same voice across pieces) · translate.py · subtitles.py · events.py · run.py. pyannote/diarize.py was removed.
+- `ai_director/perception/` (Sara's part, Ahmed built it 2026-10-06) · `ai_director/pipeline.py` (Day 7; an OPTIONAL stage
+  that fails is only a warning) · `director/render.py render_clip()` (Day 8).
+- `ai_director/brain/` (Eslam's AI Brain, added + fixed by Ahmed 2026-10-07, **NOT run/tested yet: no GPU on the
+  laptop; tests/test_brain.py written, run them on the GPU PC**). For now `ollama.vision_model: moondream` (testing;
+  planned qwen3-vl:4b) and `brain.english_text: true`: Arabic sessions send the English `translation` of the
+  transcript (scene.ensure_english() runs audio/translate.py + captions again if translations are missing).
+  Fixes vs Eslam's files: keep_alive/think were inside options; append_jsonl didn't exist; model from configs;
+  ValidationError → neutral line; tolerant resume; run.py had a hidden s01 default. translate.py: text model from
+  configs, think=False, unload() at the end.
 - `eval/` wer.py, wer_set.json (placeholder references). The old Whisper bake-off (bakeoff.py) was deleted
   2026-10-05; `audio/convert_model.py` is unused (never committed; Ahmed may delete it).
 - `configs/default.yaml` (fps, sync, scorer weights, switcher rules, audio models, ollama names), modes.yaml.
