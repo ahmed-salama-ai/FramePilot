@@ -81,3 +81,24 @@ def test_make_cuts_boost_and_mode(tmp_path):
     assert share(boosted, 3) > share(normal, 3)                                      # more camera 3
     assert share(wide, 1) > share(normal, 1)                                         # more wide shot
     assert (s / "cuts_v2.json").exists() and read_json(s / "cuts.json") == read_json(MOCK / "cuts.json")  # done file untouched
+
+
+def test_h264_settings(monkeypatch):
+    import ai_director.common.io as io
+    monkeypatch.setattr(io, "video_encoder", lambda: "h264_nvenc")                    # an NVIDIA GPU
+    gpu = io.h264(20)
+    assert gpu[:2] == ["-c:v", "h264_nvenc"] and "-cq" in gpu and gpu[-2:] == ["-pix_fmt", "yuv420p"]
+    assert io.decode_on_gpu() == ["-hwaccel", "cuda"]
+    monkeypatch.setattr(io, "video_encoder", lambda: "libx264")                       # no NVIDIA GPU
+    assert io.h264(21) == ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p"]
+    assert io.decode_on_gpu() == []
+
+
+def test_render_writes_8_bit_video(tmp_path):
+    import subprocess
+    shutil.copytree(MOCK / "video", tmp_path / "video")
+    shutil.copy(MOCK / "session.json", tmp_path)
+    out = render_program(tmp_path, [{"start": 0.0, "end": 2.0, "cam": 1}])
+    pix = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=pix_fmt",
+                          "-of", "csv=p=0", str(out)], capture_output=True, text=True).stdout.strip()
+    assert pix == "yuv420p"                                                           # 8-bit: plays in browsers

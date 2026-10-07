@@ -9,6 +9,10 @@ ingest:
   render_height: 720   # video/camN.mp4 (render)
   proxy_width: 640     # video/camN_640.mp4 (perception)
 
+video:
+  encoder: auto        # auto = the NVIDIA GPU (h264_nvenc) if FFmpeg can use one, else the CPU (libx264).
+                       # Or write h264_nvenc / libx264. Always 8-bit H.264 (browsers can't play 10-bit).
+
 scorer:
   weights: {speaker: 3.0, frontal: 1.0, quality: 0.8, gesture: 0.5, shake: 1.0}
   face_full: 0.15      # face_area at which the speaker term is at full strength
@@ -30,7 +34,8 @@ audio:
   # only take over when it is busy). 60 = ~1-minute pieces shared between all the keys at the same time.
   chunk_seconds: 0
   cut_search_seconds: 10      # pieces only: each cut goes in the silence nearest to the planned place, +-10 s
-  segment_max_seconds: 15     # transcript.json rows: split at a speaker change, a pause > 1 s, or after 15 s
+  segment_max_seconds: 5      # transcript.json rows: split at a speaker change, a pause > 1 s, after 5 s,
+  segment_max_chars: 42       # ... before 42 characters and at a sentence end -> ONE row = ONE caption
   # Gemini names the speakers of every piece separately -> voice fingerprints join the same voice across pieces
   voice_model: microsoft/wavlm-base-plus-sv
   same_voice: 0.75            # cosine similarity above this = the same person (only matters before num_speakers is reached)
@@ -40,10 +45,10 @@ audio:
 
 ollama:
   text_model: qwen3:8b      # plan B: qwen3:4b (translation, highlight titles, the agent)
-  vision_model: moondream   # AI Brain. TESTING for now (small, English only); planned: qwen3-vl:4b, plan B: gemma3:4b
+  vision_model: qwen3-vl:4b # AI Brain (understands Arabic). Tested before: moondream (English only). Plan B: gemma3:4b
   embed_model: bge-m3
 
 brain:
   every_seconds: 5          # one scene.jsonl line every 5 s of video
   text_window: 10           # what was said in the 10 s before each moment goes into the prompt
-  english_text: true        # Arabic sessions: send the ENGLISH translation (moondream only understands English)
+  english_text: false       # true = Arabic sessions send the ENGLISH translation (for English-only models like moondream)

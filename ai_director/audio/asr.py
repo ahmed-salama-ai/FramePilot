@@ -18,6 +18,7 @@ from .voices import link_speakers
 # Text speech models are known to INVENT on noise or silence (learned from YouTube subtitles): such rows are dropped
 HALLUCINATIONS = ("ترجمة نانسي", "نانسي قنقر", "اشتركوا في القناة", "اشترك في القناة", "لا تنسوا الاشتراك",
                   "شكرا للمشاهدة", "شكراً للمشاهدة", "thanks for watching", "subscribe to", "subtitles by")
+SENTENCE_END = (".", "?", "!", "؟")                      # ؟ = the Arabic question mark
 GARBAGE = re.compile(r"[　-鿿가-힯�]")      # Chinese/Japanese/Korean letters, broken "�"
 
 
@@ -129,14 +130,18 @@ def read_words(answer, offset=0.0):
     return out
 
 
-def make_rows(words, max_seconds=15.0, pause=1.0):
-    """Words -> transcript.json rows: a new row at a speaker change, a pause > `pause` s, or after `max_seconds`."""
+def make_rows(words, max_seconds=15.0, pause=1.0, max_chars=None):
+    """Words -> transcript.json rows: a new row at a speaker change, a pause > `pause` s, or after `max_seconds`.
+    With max_chars (= the caption length), a row also ends before it gets longer than max_chars and after a word
+    that ends a sentence (. ? ! ؟), so ONE row = ONE caption and its translation fits exactly that caption."""
     rows = []
     for w in words:
         c = rows[-1] if rows else None
         word = {"w": w["w"], "start": w["start"], "end": w["end"]}
+        fits = max_chars is None or (c is not None and len(" ".join(x["w"] for x in c["words"] + [word])) <= max_chars
+                                     and not c["words"][-1]["w"].endswith(SENTENCE_END))
         if (c and w["speaker"] == c["speaker"] and w["start"] - c["words"][-1]["end"] <= pause
-                and w["end"] - c["words"][0]["start"] <= max_seconds):
+                and w["end"] - c["words"][0]["start"] <= max_seconds and fits):
             c["words"].append(word)
         else:
             rows.append({"speaker": w["speaker"], "words": [word]})
@@ -220,7 +225,8 @@ def run_asr(s: Path, embed=None):
     order = list(dict.fromkeys(w["speaker"] for w in flat if w["speaker"] is not None))   # first appearance
     name = {g: f"SPEAKER_{i:02d}" for i, g in enumerate(order)}
     flat = [{**w, "speaker": name.get(w["speaker"])} for w in flat]
-    rows = [r for r in make_rows(flat, CFG["segment_max_seconds"]) if not is_hallucination(r["text"])]
+    rows = [r for r in make_rows(flat, CFG["segment_max_seconds"], max_chars=CFG.get("segment_max_chars"))
+            if not is_hallucination(r["text"])]
     rows = [{**r, "id": i} for i, r in enumerate(rows)]
     write_json(s / "diarization.json", make_diarization(rows))
     write_json(out, rows)                                              # transcript.json last

@@ -45,9 +45,20 @@ Eslam ElKharbotly (AI brain, Editor Agent). Repo: github.com/ahmedsa12/FramePilo
 - `ai_director/perception/` (Sara's part, Ahmed built it 2026-10-06) · `ai_director/pipeline.py` (Day 7; an OPTIONAL stage
   that fails is only a warning) · `director/render.py render_clip()` (Day 8).
 - `ai_director/brain/` (Eslam's AI Brain, added + fixed by Ahmed 2026-10-07, **NOT run/tested yet: no GPU on the
-  laptop; tests/test_brain.py written, run them on the GPU PC**). For now `ollama.vision_model: moondream` (testing;
-  planned qwen3-vl:4b) and `brain.english_text: true`: Arabic sessions send the English `translation` of the
-  transcript (scene.ensure_english() runs audio/translate.py + captions again if translations are missing).
+  laptop; tests/test_brain.py written, run them on the GPU PC**). Since 2026-10-08 back to `ollama.vision_model:
+  qwen3-vl:4b` with `brain.english_text: false` (the original transcript). english_text: true = send the English
+  `translation` (for English-only models like moondream; scene.ensure_english() translates first if missing).
+- 2026-10-08 fixes: (1) `common/io.h264(q)` + `decode_on_gpu()`: NVENC (`h264_nvenc`, `-cq`) when FFmpeg can use an
+  NVIDIA GPU (config `video.encoder: auto`), else libx264; ALWAYS `-pix_fmt yuv420p` — the iPhones record 10-bit HLG
+  HDR and our outputs were H.264 "High 10", which browsers can't play. Used in ingest/proxy, render, render_clip,
+  burn_captions. NVENC path untested (laptop has no NVIDIA GPU). (2) Captions: libass lays out every line LTR unless
+  the style has `Encoding=-1` (added to FORCE_STYLE, measured) + an RLM (U+200F) in front of every Arabic line (for
+  lines starting with a Latin word / speaker name). (3) Rows: `audio.segment_max_seconds: 5`, `segment_max_chars: 42`
+  + split after . ? ! ؟ → one transcript row = one caption, so each caption gets its row's whole translation
+  (old long rows: translation shared out by words). Existing sessions: rebuild rows from the cached Gemini answer.
+  (4) translate.py: answer schema `{lines: [{n, text}]}` (no "1." in the text, rows matched by number), leading
+  numbers stripped, wrong-language/missing answers asked again one by one, else "". Tests: 59 passed, 3 skipped.
+- GPU PC setup: torch 2.14.1 has only `cu126` and `cu130` Windows wheels (no cu128).
   Fixes vs Eslam's files: keep_alive/think were inside options; append_jsonl didn't exist; model from configs;
   ValidationError → neutral line; tolerant resume; run.py had a hidden s01 default. translate.py: text model from
   configs, think=False, unload() at the end.

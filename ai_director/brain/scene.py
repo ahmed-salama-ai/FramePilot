@@ -42,9 +42,10 @@ FALLBACK = {"scene": "unknown", "event": "other", "energy": 0.3, "mode": "conver
 
 
 def ensure_english(s: Path):
-    """Arabic session: every transcript row needs its English translation, because the vision model (moondream)
-    only understands English. The audio stage normally made it (step 4); if that was skipped (Ollama was not
-    running), it is made now, and the captions are written again so captions_en.srt is filled too."""
+    """Only with brain.english_text: true (for English-only models like moondream): an Arabic session needs the
+    English translation of every row. The audio stage normally made it (step 4); if that was skipped (Ollama was
+    not running), it is made now, and the captions are written again so captions_en.srt is filled too.
+    With qwen3-vl (english_text: false) the original transcript is sent and nothing is translated here."""
     if read_json(s / "session.json")["language"] != "ar" or not CFG["english_text"]:
         return
     if all(x.get("translation") for x in read_json(s / "transcript.json")):

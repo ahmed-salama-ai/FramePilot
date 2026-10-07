@@ -102,7 +102,7 @@ def test_run_with_a_fake_model(tmp_path, monkeypatch):
     out = read_jsonl(s / "scene.jsonl")
     assert [r["t"] for r in out] == [5.0 * k for k in range(12)]                # 60 s, one line every 5 s
     assert out[2]["scene"] == "unknown"                                         # bad answer -> neutral line
-    assert "Welcome to a new episode" in prompts[1]                             # English text (mock = Arabic)
+    assert "أهلاً بيكم في حلقة جديدة" in prompts[1]                              # english_text: false -> Arabic
     TypeAdapter(list[S.SceneLine]).validate_python(out)
     (s / "scene.jsonl").unlink()
     scene.run(s)                                                                # resume: nothing to ask again

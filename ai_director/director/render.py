@@ -3,7 +3,7 @@
 import shutil
 from pathlib import Path
 
-from ai_director.common.io import read_json, run, session_from_argv
+from ai_director.common.io import h264, read_json, run, session_from_argv   # h264(): GPU (NVENC) or CPU, 8-bit
 
 
 def render_program(session_dir, cuts, out="program_nocaps.mp4"):
@@ -16,7 +16,7 @@ def render_program(session_dir, cuts, out="program_nocaps.mp4"):
         name = f"seg{i:04d}.mp4"
         run(["ffmpeg", "-y", "-ss", f"{c['start']:.3f}", "-i", f"video/cam{c['cam']}.mp4",
              "-t", f"{c['end'] - c['start']:.3f}", "-an", "-r", "30",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", f"tmp/{name}"], cwd=session_dir)
+             *h264(20), f"tmp/{name}"], cwd=session_dir)
         names.append(f"file '{name}'")
     (tmp / "list.txt").write_text("\n".join(names), encoding="utf-8")
     # 2. join the shots (no re-encoding) + 3. the sound of the reference camera for the whole video
@@ -69,8 +69,8 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
            "-t", f"{end - start:.2f}", "-map", "0:v", "-map", "1:a"]
     if vf:
         cmd += ["-vf", ",".join(vf)]
-    run(cmd + ["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac",
-               "-movflags", "+faststart", out], cwd=session_dir)                   # faststart: plays in a browser at once
+    run(cmd + [*h264(21), "-c:a", "aac", "-movflags", "+faststart", out],
+        cwd=session_dir)                                                           # faststart: plays in a browser at once
     srt.unlink(missing_ok=True)
     return session_dir / out
 
