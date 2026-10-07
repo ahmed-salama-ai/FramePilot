@@ -52,3 +52,16 @@ brain:
   every_seconds: 5          # one scene.jsonl line every 5 s of video
   text_window: 10           # what was said in the 10 s before each moment goes into the prompt
   english_text: false       # true = Arabic sessions send the ENGLISH translation (for English-only models like moondream)
+
+highlights:
+  weights: {loud: 1.0, laugh: 2.0, energy: 1.5, highlight: 1.0, changes: 0.3}   # the interest formula
+  smooth_seconds: 5          # interest = average of 5 seconds (no single-second spikes)
+  peak_distance: 30          # two candidate moments are at least 30 s apart
+  peak_percentile: 85        # a peak must be in the top 15% of the interest curve
+  candidates: 8              # the best 8 peaks go to the LLM
+  before: 15                 # a clip starts ~15 s before the peak ...
+  after: 20                  # ... and ends ~20 s after it (then moved to sentence boundaries)
+  min_length: 20             # clip length in seconds
+  max_length: 45
+  min_picks: 3               # the LLM chooses 3-5 clips (fewer if there are fewer candidates)
+  max_picks: 5
