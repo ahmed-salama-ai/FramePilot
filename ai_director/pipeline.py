@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from .common.io import session_from_argv
+from .common.io import read_json, session_from_argv, write_json
 from .common.paths import ROOT
 
 STAGES = [   # (name shown in the web app, python module, the stage's "done" file, required?)
@@ -54,6 +54,8 @@ def run_pipeline(session_dir, on_progress=lambda stage, pct: print(f"  [{pct:3d}
     logs = session_dir / "logs"
     logs.mkdir(exist_ok=True)
     report = []
+    times_file = logs / "times.json"                                  # seconds per stage, for eval.run (metrics)
+    times = read_json(times_file) if times_file.exists() else {}
     for i, (name, module, done_file, required) in enumerate(STAGES):
         on_progress(name, int(100 * i / len(STAGES)))
         if (session_dir / done_file).exists():
@@ -68,6 +70,8 @@ def run_pipeline(session_dir, on_progress=lambda stage, pct: print(f"  [{pct:3d}
         t0 = time.time()
         code = run_stage(session_dir, module, log)
         secs = round(time.time() - t0, 1)
+        times[name] = secs
+        write_json(times_file, times)                                 # saved at once: Evaluation (last) reads it
         problem = (f"failed after {secs} s" if code != 0 else
                    f"ended without writing {done_file}" if not (session_dir / done_file).exists() else None)
         if problem and required:

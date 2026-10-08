@@ -28,6 +28,7 @@ PROGRAM_NOCAPS = "program_nocaps.mp4"  # ⑥ render
 PROGRAM = "program.mp4"             # ⑥
 HIGHLIGHTS = "highlights.json"      # ⑦  highlights
 CLIPS = "clips.json"                # ⑨  editor agent
+SEARCH_INDEX = "search_index.npy"   # ⑨  the agent's search cache
 LABELS = "labels.csv"               # W  labelling tool
 HIGHLIGHT_LABELS = "highlight_labels.csv"  # W
 METRICS = "metrics.json"            # ⑧  evaluation

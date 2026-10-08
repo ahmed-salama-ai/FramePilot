@@ -23,6 +23,7 @@ JSON_FILES = {  # file → (schema, owner)
     "timeline.json": (S.Timeline, "director"),
     "highlights.json": (list[S.Highlight], "highlights"),
     "clips.json": (list[S.Clip], "agent"),
+    "metrics.json": (S.Metrics, "evaluation"),
 }
 
 

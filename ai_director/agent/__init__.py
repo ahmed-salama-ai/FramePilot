@@ -1,1 +1,1 @@
-"""⑨ Editor Agent: tools.py agent.py prompts.py search.py. Owner: Eslam ElKharbotly."""
+"""⑨ Editor Agent: agent.py (the loop, chat()), tools.py, search.py, prompts.py, run.py. Owner: Eslam ElKharbotly."""

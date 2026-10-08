@@ -1,4 +1,5 @@
 # tests/test_pipeline.py — pipeline.py with small FAKE stages (fast, no AI models)
+import json
 import shutil
 
 import pytest
@@ -43,6 +44,7 @@ def test_runs_in_order_then_skips_everything(fake, monkeypatch):
     again = pl.run_pipeline(fake, lambda *a: None)
     assert [s for _, s, _ in again] == ["already done", "already done"]                # second run: nothing to do
     assert len((fake / "logs" / "pipeline.log").read_text(encoding="utf-8").splitlines()) == 2
+    assert set(json.loads((fake / "logs" / "times.json").read_text(encoding="utf-8"))) == {"A", "B"}   # for eval.run
 
 
 def test_continues_where_it_stopped(fake, monkeypatch):

@@ -53,6 +53,24 @@ brain:
   text_window: 10           # what was said in the 10 s before each moment goes into the prompt
   english_text: false       # true = Arabic sessions send the ENGLISH translation (for English-only models like moondream)
 
+agent:                       # the Editor Agent (chat). Its LLM = ollama.text_model, its search = ollama.embed_model
+  max_steps: 6               # at most 6 tool calls per request, then it must answer
+  max_clips: 3               # clips per request
+  clip_seconds: [5, 180]     # allowed clip length
+  temperature: 0.0           # 0 = the steadiest tool calls (the same request gives the same answer)
+  num_ctx: 8192              # how much text the model reads at once: rules + tools + chat + tool results
+  keep_alive: 2m             # the models leave the GPU 2 min after the last request (a new upload needs it)
+  window_seconds: 30         # search compares the request with ~30 s pieces of the transcript (whole sentences)
+  window_step: 10            # ... a new piece starts every ~10 s
+
+eval:                        # the evaluation (stage 8) and the results table
+  short_cut: 1.0             # a shot shorter than 1 s = flicker (the table's "cuts shorter than 1 s")
+  random_seeds: 10           # the random baseline = the average of 10 different random edits
+  tuning_sessions: [s01, s02]   # tune the weights on these ...
+  test_session: s03          # ... and report the final numbers on this one (never tune on it)
+  ab_pairs: 3                # A/B viewer test: 3 pairs of ...
+  ab_seconds: 45             # ... 45-second clips (the AI edit vs always-wide)
+
 highlights:
   weights: {loud: 1.0, laugh: 2.0, energy: 1.5, highlight: 1.0, changes: 0.3}   # the interest formula
   smooth_seconds: 5          # interest = average of 5 seconds (no single-second spikes)

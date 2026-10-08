@@ -113,3 +113,21 @@ class Clip(BaseModel):                        # clips.json item (Editor Agent)
     format: Literal["16:9", "9:16"]
     title: str = ""
     file: str
+    focus_speaker: str | None = None          # the person the clip shows (SPEAKER_xx), None = the AI edit
+
+
+class EditScores(BaseModel):                  # metrics.json -> director -> ai / random / wide / human
+    agreement: float | None = None            # share of time with the same camera as the human (needs labels.csv)
+    speaker_coverage: float | None = None     # share of speaking time with the speaker's close-up on air
+    short_cuts: int                           # shots shorter than 1 s (flicker)
+    avg_shot: float                           # seconds per shot
+    shots: int | None = None
+
+
+class Metrics(BaseModel):                     # metrics.json (evaluation): None = not measured yet
+    director: dict[str, EditScores] | None = None
+    captions: dict[str, dict[str, float]] | None = None    # {"ar": {"wer": .., "cer": .., "words": ..}}
+    highlights: dict[str, float] | None = None             # {"precision_at_3": .., "labels": ..}
+    agent: dict[str, float] | None = None                  # {"success_rate": .., "avg_steps": .., ...}
+    viewer_test: dict[str, float | None] | None = None     # {"prefer_ai": .., "answers": .., "pair1": ..}
+    processing_seconds: dict[str, float] = {}              # {"Ingest + Sync": 41.2, ...}
