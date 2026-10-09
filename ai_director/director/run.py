@@ -4,6 +4,7 @@ import yaml
 from ai_director.common.io import read_json, session_from_argv, write_json
 from ai_director.common.paths import CONFIGS
 from ai_director.director.scorer import score
+from ai_director.director.split import add_splits, split_moments
 from ai_director.director.switcher import Switcher
 
 RULES = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["switcher"]
@@ -48,7 +49,7 @@ def decide(s, boost=None, force_mode=None):
     for (t, row), spk in zip(table.iterrows(), speakers):
         scores = {int(cam): float(v) for cam, v in row.items()}
         on_air.append((t, sw.step(t, scores, spk)))
-    return to_segments(on_air), sc
+    return add_splits(to_segments(on_air), split_moments(s), RULES["min_shot"]), sc   # split screen (2026-10-09)
 
 
 def make_cuts(s, boost=None, force_mode=None, out="cuts.json"):
@@ -80,6 +81,9 @@ if __name__ == "__main__":
     write_json(s / "timeline.json", make_timeline(sc, cuts))         # for Ahmed Sameh's chart
     write_json(s / "cuts.json", cuts)                                # written LAST: the "done" file
     shots = [c["end"] - c["start"] for c in cuts]
-    print(f"{len(cuts)} shots, average {sum(shots) / len(shots):.1f} s, shortest {min(shots):.1f} s")
+    splits = [c for c in cuts if c.get("split")]
+    print(f"{len(cuts)} shots, average {sum(shots) / len(shots):.1f} s, shortest {min(shots):.1f} s; "
+          f"{len(splits)} split screens, {sum(c['end'] - c['start'] for c in splits):.0f} s")
     for c in cuts:
-        print(f"  {c['start']:6.1f} -> {c['end']:6.1f}  cam {c['cam']}")
+        print(f"  {c['start']:6.1f} -> {c['end']:6.1f}  " +
+              (f"split cam {c['split'][0]} | cam {c['split'][1]}" if c.get("split") else f"cam {c['cam']}"))

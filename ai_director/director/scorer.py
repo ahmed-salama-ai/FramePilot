@@ -25,7 +25,10 @@ def score(session_dir, boost=None, force_mode=None):
     f = pd.read_parquet(session_dir / "features.parquet").sort_values(["t", "cam"]).reset_index(drop=True)
     roles = {c["id"]: c["role"] for c in read_json(session_dir / "session.json")["cameras"]}
 
-    base = (W["speaker"] * f.speaker_prob * (f.face_area / CFG["face_full"]).clip(upper=1)
+    size = (f.face_area / CFG["face_full"]).clip(upper=1)
+    someone = (f.num_people > 0) | (f.face_area > 0)
+    size = size.clip(lower=CFG["no_face_size"]).where(someone, 0.0)   # someone on camera: at least a third, a big face more
+    base = (W["speaker"] * f.speaker_prob * size
             + W["frontal"] * f.frontalness
             + W["quality"] * (0.6 * f.sharpness + 0.4 * f.exposure_ok)
             + W["gesture"] * f.gesture_score

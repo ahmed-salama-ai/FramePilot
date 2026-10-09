@@ -65,7 +65,7 @@ HIGHLIGHTS = [
      "hook": "One page, real projects: the CV rule"},
 ]
 CLIPS = [{"id": "c1", "start": 38.0, "end": 52.0, "format": "9:16", "title": "Salary advice from the guest",
-          "file": "clips/c1.mp4"}]
+          "file": "clips/c1.mp4", "captions": "none"}]                 # cut_clip() burns in no captions
 # scene.jsonl: t → (scene, event, energy, raw_mode, highlight)
 SCENES = {0: ("host introduces the episode", "talking", 0.3, "conversation", False),
           5: ("host talks about the topic", "talking", 0.3, "conversation", False),
@@ -149,13 +149,11 @@ def make_videos(font):
              "-ss", f"{HEAD - starts[c]:.3f}", "-i", "master.wav", "-t", f"{raw_len:.3f}",
              "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "34",
              "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "1", "-b:a", "32k", f"../raw/cam{c}.mp4"], cwd=TMP)
-        # video/camN.mp4: synced 720p with audio (render) → video/camN_640.mp4: 640px, no audio (perception)
+        # video/camN.mp4: synced 720p with audio (every stage reads it; no 640px copy since 2026-10-09)
         run(["ffmpeg", "-y", "-f", "lavfi", "-i", source(c, "1280x720", font),
              "-ss", f"{HEAD:.3f}", "-i", "master.wav", "-t", f"{DUR:.3f}",
              "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "32",
              "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "1", "-b:a", "32k", f"../video/cam{c}.mp4"], cwd=TMP)
-        run(["ffmpeg", "-y", "-i", f"video/cam{c}.mp4", "-vf", "scale=640:-2", "-an",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "34", f"video/cam{c}_640.mp4"], cwd=OUT)
     run(["ffmpeg", "-y", "-ss", f"{HEAD:.3f}", "-i", "_tmp/master.wav", "-t", f"{DUR:.3f}",
          "-ac", "1", "-ar", "16000", "audio.wav"], cwd=OUT)
 
@@ -269,7 +267,8 @@ def make_tables(scene_rows):
     # scores.parquet: the Architecture §5 formula, so the mock scores match the features
     W = dict(speaker=3.0, frontal=1.0, quality=0.8, gesture=0.5, shake=1.0)
     modes = yaml.safe_load((ROOT / "configs" / "modes.yaml").read_text(encoding="utf-8"))
-    base = (W["speaker"] * f.speaker_prob * (f.face_area / 0.15).clip(upper=1) + W["frontal"] * f.frontalness
+    size = (f.face_area / 0.15).clip(lower=0.33, upper=1).where((f.num_people > 0) | (f.face_area > 0), 0.0)  # scorer.py
+    base = (W["speaker"] * f.speaker_prob * size + W["frontal"] * f.frontalness
             + W["quality"] * (0.6 * f.sharpness + 0.4 * f.exposure_ok) + W["gesture"] * f.gesture_score
             - W["shake"] * f.shake).clip(lower=0.01)
     f["mode"] = [mode_at(t, scene_rows) for t in f.t]

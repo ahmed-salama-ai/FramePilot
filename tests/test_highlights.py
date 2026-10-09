@@ -64,6 +64,24 @@ def test_the_llm_picks_with_checks():
     assert chosen[1][1]["title_ar"] == "أول جملة في المقطع رقم 0"     # fallback title: the first words
 
 
+def test_titles_from_gemini_then_the_local_model(monkeypatch):
+    """By default Gemini (highlights.title_model) picks and writes the titles; without quota the local model does."""
+    import ai_director.audio.gemini as gemini
+    import ai_director.brain.llm_client as llm
+    asked = []
+    monkeypatch.setattr(gemini, "ask_json", lambda model, prompt, schema: asked.append(model) or Picks(
+        picks=[Pick(id=1, title_ar="عنوان", title_en="Title", hook="Hook")]))
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("local model used")))
+    assert pick(cands(4), "ar")[0][1]["title_en"] == "Title" and asked == ["gemini-3.1-flash-lite"]
+
+    def no_quota(*a, **k):
+        raise RuntimeError("Gemini: no key can be used right now (rate or daily limits).")
+    monkeypatch.setattr(gemini, "ask_json", no_quota)
+    monkeypatch.setattr(llm, "chat_json", lambda model, prompt, schema, think=None: Picks(
+        picks=[Pick(id=2, title_ar="محلي", title_en="Local", hook="")]))
+    assert pick(cands(4), "ar")[0][1]["title_en"] == "Local"
+
+
 def test_no_llm_still_gives_highlights():
     def broken(prompt):
         raise ConnectionError("Ollama is not running")

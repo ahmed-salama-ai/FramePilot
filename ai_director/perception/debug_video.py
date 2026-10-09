@@ -9,11 +9,12 @@ from ..common.io import read_json, session_from_argv
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 
-def debug_video(s, cam, fps=30):
+def debug_video(s, cam, fps=30, width=640):
     df = pd.read_parquet(s / "features.parquet")
     rows = df[df.cam == cam].set_index("t")
-    cap = cv2.VideoCapture(str(s / f"video/cam{cam}_640.mp4"))
-    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap = cv2.VideoCapture(str(s / f"video/cam{cam}.mp4"))       # shrunk here (no 640px copy since 2026-10-09)
+    w = width
+    h = round(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * w / cap.get(cv2.CAP_PROP_FRAME_WIDTH) / 2) * 2
     (s / "debug").mkdir(exist_ok=True)
     out = cv2.VideoWriter(str(s / f"debug/cam{cam}_debug.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
     i = 0
@@ -21,6 +22,7 @@ def debug_video(s, cam, fps=30):
         ok, frame = cap.read()
         if not ok:
             break
+        frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
         r = rows.loc[min(round(i / fps, 1), rows.index.max())]          # the row of this moment
         cv2.rectangle(frame, (10, h - 20), (10 + int(200 * r.speaker_prob), h - 8), (0, 200, 0), -1)  # green bar
         cv2.rectangle(frame, (10, h - 20), (210, h - 8), (255, 255, 255), 1)

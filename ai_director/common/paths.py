@@ -35,5 +35,4 @@ METRICS = "metrics.json"            # ⑧  evaluation
 
 
 def raw(cam): return f"raw/cam{cam}.mp4"
-def video(cam): return f"video/cam{cam}.mp4"        # synced 720p (render)
-def proxy(cam): return f"video/cam{cam}_640.mp4"    # synced 640px (perception)
+def video(cam): return f"video/cam{cam}.mp4"        # synced 1080p (every stage reads it; no 640px copy since 2026-10-09)

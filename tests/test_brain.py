@@ -39,7 +39,7 @@ def test_read_rows_skips_a_broken_line(tmp_path):
 def test_grid_has_all_cameras(tmp_path):
     cv2 = pytest.importorskip("cv2")
     from ai_director.brain.grid import grid_at
-    caps = {c: cv2.VideoCapture(str(MOCK / f"video/cam{c}_640.mp4")) for c in (1, 2, 3)}
+    caps = {c: cv2.VideoCapture(str(MOCK / f"video/cam{c}.mp4")) for c in (1, 2, 3)}
     img = cv2.imread(grid_at(caps, 12.0, tmp_path / "grid.jpg"))
     assert img.shape == (378, 672, 3)                                           # 2 x 2 tiles of 336 x 189
     assert img[200:, 350:].max() < 10                                           # the 4th tile is black (3 cameras;
@@ -107,3 +107,20 @@ def test_run_with_a_fake_model(tmp_path, monkeypatch):
     (s / "scene.jsonl").unlink()
     scene.run(s)                                                                # resume: nothing to ask again
     assert len(prompts) == 12 and (s / "scene.jsonl").exists()
+
+
+def test_laughter_from_the_audio(tmp_path):
+    """The audio hears laughter -> reaction, even if the vision model saw nothing; the vision model's "laughter"
+    without any laughter in the audio (s03: two such pictures) is ignored."""
+    rows = [row(0.0, "conversation"), row(5.0, "conversation"), row(10.0, "conversation", event="laughter"),
+            row(15.0, "conversation")]
+    (tmp_path / "scene.partial.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    audio = [{"t": k, "loudness_db": -30.0, "laugh": 0.4 if k == 6 else 0.01} for k in range(20)]
+    (tmp_path / "audio_events.json").write_text(json.dumps(audio), encoding="utf-8")
+    smooth_modes(tmp_path)
+    assert [r["mode"] for r in read_jsonl(tmp_path / "scene.jsonl")] == ["conversation", "reaction", "reaction",
+                                                                         "conversation"]   # laughter over: back
+    audio = [{"t": k, "loudness_db": -30.0, "laugh": 0.01} for k in range(20)]       # silent audio: no reaction
+    (tmp_path / "audio_events.json").write_text(json.dumps(audio), encoding="utf-8")
+    smooth_modes(tmp_path)
+    assert {r["mode"] for r in read_jsonl(tmp_path / "scene.jsonl")} == {"conversation"}

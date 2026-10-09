@@ -13,7 +13,7 @@ import soundfile as sf
 
 from ..common.io import read_json, write_json
 from .gemini import CFG, clients, with_keys
-from .voices import link_speakers
+from .voices import link_speakers, merge_extra_voices
 
 # Text speech models are known to INVENT on noise or silence (learned from YouTube subtitles): such rows are dropped
 HALLUCINATIONS = ("ترجمة نانسي", "نانسي قنقر", "اشتركوا في القناة", "اشترك في القناة", "لا تنسوا الاشتراك",
@@ -208,8 +208,11 @@ def run_asr(s: Path, embed=None):
         for w in ws:
             if w["speaker"]:
                 spans[k].setdefault(w["speaker"], []).append((w["start"], w["end"]))
-    if len(parts) == 1:
-        link = {(0, l): i for i, l in enumerate(spans[0])}
+    if len(parts) == 1:                                                # one request: join Gemini's extra labels
+        joined = merge_extra_voices(spans[0], audio, sr, n_speakers, CFG["merge_voice"],
+                                    **({"embed": embed} if embed else {}))
+        keep = [l for l in spans[0] if l not in joined]
+        link = {(0, l): keep.index(joined.get(l, l)) for l in spans[0]}
     else:
         link = link_speakers(spans, audio, sr, n_speakers, CFG["same_voice"], **({"embed": embed} if embed else {}))
     flat, prev = [], None

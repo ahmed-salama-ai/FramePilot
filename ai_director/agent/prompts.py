@@ -1,31 +1,53 @@
 # ai_director/agent/prompts.py — the Editor Agent's rules (the "system prompt")
 # Owner: Eslam ElKharbotly (fixed by Ahmed Salama: the real people come from speakers.json, no fixed SPEAKER ids,
-# the guide's rules are back: no invented times, sentence edges, at most 3 clips, a title per clip)
+# the guide's rules are back: no invented times, sentence edges, at most 3 clips, a title per clip;
+# 2026-10-08: the length is sent as seconds (the code does the maths), captions only when asked, the user's language,
+# who to show (read by a small LLM question first, asks.read_focus) is told to the agent)
 
 SYSTEM = """You are the Editor Agent of AI Director. You edit a recorded multi-camera video ({duration:.0f} seconds
 long, main language: {language}) by calling tools.
-The people in the video:
+The people in the video (SPEAKER ids are ONLY for tool arguments; in your answer call people as shown after "->"):
 {speakers}
-Rules:
+Clips already made for this video (newest last; "it" / "the clip" = the newest one):
+{previous}
+The user writes in {user_language}: write your answer AND every clip title in {user_language}.
+Clips to make for this request: {count}.
+{focus}Rules:
 - To find what was said, ALWAYS call search_transcript first, with the topic in a few words. Franco-Arabic (e.g.
   "e3mel clip 3an el mortabat") -> search in Arabic letters ("المرتبات"). If no moment fits, search once more with
   other words.
-- Never invent times: only use start/end values that a tool returned (or times the user typed, like 2:30).
-- Clip length: what the user asked for ("1 minute" = 60 s: start = the moment's start, end = start + 60); otherwise
-  the moment's start and end. Clip edges are moved to whole sentences for you.
+- Never invent times: start and end = a moment that a tool returned (or times the user typed, like 2:30).
+- Clip length: if the user asked for one, also send seconds ("1 minute" = 60, "1-2 minutes" = 90, "دقيقتين" = 120):
+  the clip is made that long for you. Otherwise seconds = null. Clip edges are moved to whole sentences for you.
 - "focus on / ركز على" a person -> focus_speaker = that person's SPEAKER id from the list above (by role or name).
 - TikTok / Reels / Shorts / vertical / عمودي / ريل -> format "9:16". Otherwise "16:9" ("a short clip" only means a
   brief clip).
-- At most {max_clips} clips per request.
+- captions: only if the user named the caption languages ("English subtitles" -> "en", "Arabic and English" ->
+  "ar+en", "no captions" -> "none"); otherwise null (the right default is chosen for you).
+- A change to a clip already made ("make it vertical", "make it longer / shorter", "the last clip", "c2", "خليه
+  عمودي", "أطول", "أقصر"): call make_clip with THAT clip's start and end from the list above (no search needed) and
+  the change asked; the new length is worked out for you.
 - restyle_video only when the user wants the WHOLE video changed (e.g. "show the guest more", "more reactions").
-- If the request is unclear (e.g. "make it better"), ask ONE short question and call no tools.
+- If the request is unclear (e.g. "make it better"), ask ONE short question (ending with "?") and call no tools.
 - If a tool returns an error, read it, fix your call and try again.
-- Answer in the user's language (Egyptian Arabic or English), short and friendly: for every clip its catchy title
-  and its length in seconds."""
+- Every make_clip needs a title: 3-7 catchy words that say what the clip is about (not copied from the transcript).
+- Your answer: 1-2 short friendly sentences in {user_language}. Do NOT list the clips or their titles, lengths,
+  formats, captions, cameras or files: the list of the clips really made is added under your answer for you."""
 
 
-def speaker_lines(speakers):
-    """One line per person for the prompt, e.g. '- SPEAKER_01: guest, Islam, close-up camera 3, talks 210 s. ...'"""
+def focus_line(focus):
+    """What the "who to show" reader found, for the rules ("" = not read). The agent still picks the SPEAKER id."""
+    if focus is None:
+        return ""
+    if not focus["level"]:
+        return "The user did NOT ask to show a particular person: focus_speaker = null.\n"
+    return (f"The user wants to show {focus['person']} ({focus['level']}): focus_speaker = that person's SPEAKER id "
+            f"(how much of the clip shows them is handled for you).\n")
+
+
+def speaker_lines(speakers, labels=None):
+    """One line per person for the prompt, e.g. '- SPEAKER_01: guest, Islam, close-up camera 3, talks 210 s. ...'
+    labels (asks.people_labels): how to call each person in the answer (' -> Islam', ' -> the host')."""
     if not speakers:
         return "- (unknown: no speaker files yet)"
     lines = []
@@ -34,5 +56,23 @@ def speaker_lines(speakers):
                  f"close-up camera {p['camera']}" if p["camera"] is not None else "no close-up camera",
                  f"talks {p['talk_seconds']} s"]
         line = f"- {p['id']}: " + ", ".join(x for x in about if x)
-        lines.append(line + (f". {p['description'][:120]}" if p["description"] else ""))
+        line += f". {p['description'][:120]}" if p["description"] else ""
+        lines.append(line + (f" -> {labels[p['id']]}" if labels and p["id"] in labels else ""))
     return "\n".join(lines)
+
+
+def previous_lines(previous):
+    """The clips already made, one line each (for follow-ups like "make it vertical")."""
+    if not previous:
+        return "- (none yet)"
+    return "\n".join(f"- {c['id']}: {c['start']:.1f}-{c['end']:.1f} s ({c['end'] - c['start']:.0f} s), {c['format']}"
+                     + (f', "{c["title"]}"' if c.get("title") else "") for c in previous)
+
+
+def count_text(count, max_clips):
+    """'at most 1' / 'exactly 2' / 'up to 3' (asks.asked_count; None = several, no number). 1 is also "no number", so
+    it is only a limit: "the user asked for 1 clip" made qwen render a video for "خلي الفيديو أحسن" (2026-10-09 eval)."""
+    n = min(count or max_clips, max_clips)
+    if not count:
+        return f"up to {n} clips"
+    return "at most 1 clip (none if the request is unclear)" if n == 1 else f"exactly {n} clips"

@@ -23,6 +23,14 @@ def on_air_at(cuts, times):
     return cams[np.clip(i, 0, len(cuts) - 1)]
 
 
+def second_cam_at(cuts, times):
+    """Split screen (2026-10-09): the OTHER camera on screen at every time (-1 = no split): both people are seen."""
+    starts = np.array([c["start"] for c in cuts])
+    other = np.array([next((x for x in c["split"] if x != c["cam"]), -1) if c.get("split") else -1 for c in cuts])
+    i = np.searchsorted(starts, np.asarray(times, dtype=float) + 1e-9, side="right") - 1
+    return other[np.clip(i, 0, len(cuts) - 1)]
+
+
 def speaking_cams(s, times):
     """For every time: the close-up camera of the person talking, or -1 (nobody talks, or that person has no
     close-up camera in speaker_map.json)."""
@@ -39,9 +47,10 @@ def edit_scores(cuts, times, speaking, human=None):
     """The 4 numbers of the results table for one edit (a cut list)."""
     shots = [c["end"] - c["start"] for c in cuts]
     on = on_air_at(cuts, times)
+    seen = (on == speaking) | (second_cam_at(cuts, times) == speaking)    # a split screen shows both close-ups
     talking = speaking >= 0
     return {"agreement": round(float((on == human).mean()), 3) if human is not None else None,
-            "speaker_coverage": round(float((on[talking] == speaking[talking]).mean()), 3) if talking.any() else None,
+            "speaker_coverage": round(float(seen[talking].mean()), 3) if talking.any() else None,
             "short_cuts": int(sum(x < CFG["short_cut"] for x in shots[:-1])),   # the last shot may end with the video
             "avg_shot": round(float(np.mean(shots)), 2),
             "shots": len(cuts)}

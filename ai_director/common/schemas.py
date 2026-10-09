@@ -86,7 +86,9 @@ class SceneLine(BaseModel):                   # scene.jsonl line (every 5 s)
 class Cut(BaseModel):                         # cuts.json item
     start: float
     end: float
-    cam: int
+    cam: int                                  # the camera on air (a split shot: the camera of the person talking most)
+    split: list[int] | None = None            # split screen (2026-10-09): [left camera, right camera], side by side
+    split_x: list[float] | None = None        # ... where each person's face is (0..1): each half is cut around it
 
 
 class Timeline(BaseModel):                    # timeline.json (1 value per second)
@@ -114,6 +116,7 @@ class Clip(BaseModel):                        # clips.json item (Editor Agent)
     title: str = ""
     file: str
     focus_speaker: str | None = None          # the person the clip shows (SPEAKER_xx), None = the AI edit
+    captions: Literal["ar", "en", "ar+en", "none"] | None = None   # caption languages in the video (None = older clip)
 
 
 class EditScores(BaseModel):                  # metrics.json -> director -> ai / random / wide / human

@@ -26,6 +26,19 @@ from panns_inference import AudioTagging, labels
 from ..common.io import write_json
 
 
+LAUGHS = [l for l in labels if any(k in l.lower() for k in ("laugh", "giggle", "snicker", "chuckle", "chortle"))]
+
+
+def laughter(at, x32, n, window=3):
+    """Second t -> the strongest of ALL laughter kinds (Laughter, Giggle, Snicker, Belly laugh, Chuckle...) in the
+    `window` seconds around t. Ahmed Salama 2026-10-08: only "Laughter" in 1 s pieces gave s01 at most 0.16; the whole
+    family over 3 s gives 0.48 at the same moments (a laugh is longer than 1 s and often a chuckle under speech)."""
+    idx, sr = [labels.index(l) for l in LAUGHS], 32000
+    pad = np.concatenate([np.zeros(sr * (window // 2), "float32"), x32, np.zeros(sr * window, "float32")])
+    clips = np.stack([pad[i * sr:(i + window) * sr] for i in range(n)])                # second i in the middle
+    return np.concatenate([at.inference(clips[b:b + 32])[0][:, idx].max(axis=1) for b in range(0, n, 32)])
+
+
 def run_events(s: Path):
     out = s / "audio_events.json"
     if out.exists():
@@ -37,9 +50,7 @@ def run_events(s: Path):
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     at = AudioTagging(checkpoint_path=None, device=device)  # PANNs wants 32 kHz
-    x32 = resample_poly(wav, 2, 1).astype("float32")[: n * 32000].reshape(n, 32000)
-    LAUGH = labels.index("Laughter")
-    laugh = np.concatenate([at.inference(x32[b:b + 64])[0][:, LAUGH] for b in range(0, n, 64)])
+    laugh = laughter(at, resample_poly(wav, 2, 1).astype("float32"), n)
 
     write_json(out, [{"t": i, "loudness_db": round(float(loud_db[i]), 2),
                       "laugh": round(float(laugh[i]), 3)} for i in range(n)])

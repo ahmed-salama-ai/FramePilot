@@ -175,3 +175,24 @@ def test_run_asr_full_session(tmp_path, monkeypatch):
     assert calls == ["asr_piece_000.wav"]
     rows = read_json(tmp_path / "transcript.json")
     assert [r["speaker"] for r in rows] == ["SPEAKER_00", "SPEAKER_01", "SPEAKER_00"]   # by first appearance
+
+
+def test_extra_voices_join_only_the_same_person():
+    """One request: Gemini sometimes makes one person two labels. The smallest label joins a voice only if it is
+    nearly the same (measured: same person 0.98, two different men 0.89-0.93)."""
+    from ai_director.audio.voices import merge_extra_voices
+    vec = {"A": [1.0, 0.0, 0.0], "B": [0.99, 0.141, 0.0], "C": [0.0, 1.0, 0.0], "D": [0.93, 0.0, 0.368]}
+    fake = lambda clips, sr: np.array([vec[c] for c in clips])                 # the "audio" is the label's name
+    audio = None
+    spans = {"A": [(0, 100)], "B": [(100, 110)], "C": [(110, 160)]}
+    say = lambda a, sr, s: {(0, 100): "A", (100, 110): "B", (110, 160): "C", (160, 170): "D"}[s[0]]
+    import ai_director.audio.voices as V
+    old = V.speaker_audio
+    V.speaker_audio = say
+    try:
+        assert merge_extra_voices(spans, audio, 16000, 2, embed=fake) == {"B": "A"}                # 0.99: joins
+        assert merge_extra_voices(spans, audio, 16000, 3, embed=fake) == {}                        # count is right
+        assert merge_extra_voices({**spans, "D": [(160, 170)]}, audio, 16000, 3, embed=fake) == {"B": "A"}
+        assert merge_extra_voices({"A": [(0, 100)], "D": [(160, 170)]}, audio, 16000, 1, embed=fake) == {}   # 0.93: two men
+    finally:
+        V.speaker_audio = old

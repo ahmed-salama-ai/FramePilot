@@ -44,6 +44,19 @@ def video_encoder():
         return "libx264"
 
 
+QUALITY = {"program": 26, "clips": 21, "cameras": 22}   # used if configs has no video.quality
+
+
+@lru_cache(maxsize=None)
+def quality(kind):
+    """The H.264 quality level for one kind of video ("program", "clips", "cameras"), from
+    configs/default.yaml -> video.quality (lower = better picture, bigger file)."""
+    import yaml
+    from .paths import CONFIGS
+    cfg = (yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8")).get("video") or {}).get("quality")
+    return int((cfg or {}).get(kind, QUALITY[kind]))
+
+
 def h264(quality):
     """FFmpeg arguments to write H.264 at a quality level (lower = better, like x264's crf; 20 = very good).
     Always 8-bit yuv420p: browsers and phones can't play 10-bit ("High 10") H.264, and NVENC can't write it."""

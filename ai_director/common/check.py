@@ -51,9 +51,8 @@ def check_session(s: Path) -> list[str]:
     rows = round(dur * 10)                          # one row every 0.1 s
 
     for c in cams:
-        for f in (f"video/cam{c}.mp4", f"video/cam{c}_640.mp4"):
-            if not (s / f).exists():
-                bad(f, "missing (ingest)")
+        if not (s / f"video/cam{c}.mp4").exists():
+            bad(f"video/cam{c}.mp4", "missing (ingest)")
 
     if (s / "features.parquet").exists():
         f = pd.read_parquet(s / "features.parquet")

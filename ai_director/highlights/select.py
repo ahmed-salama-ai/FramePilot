@@ -63,18 +63,30 @@ def fallback(c, n, language):
     return {"title_ar": ar, "title_en": en or f"Highlight {n}", "hook": ""}
 
 
+def default_ask(prompt):
+    """Gemini (highlights.title_model, 1 request per session) writes the titles; the local model (ollama.text_model)
+    only if Gemini can't be used (no key / daily limit / no internet). 2026-10-09 (Ahmed): qwen3:8b's titles were weak
+    and Gemini translated much better on s01 + s03."""
+    if CFG.get("title_model"):
+        try:
+            from ..audio.gemini import ask_json
+            return ask_json(CFG["title_model"], prompt, Picks)
+        except Exception as e:
+            print(f"  Gemini titles failed ({type(e).__name__}: {str(e)[:120]}) -> the local model")
+    from ..brain.llm_client import chat_json                          # Eslam's client (needs the ollama package)
+    from ..common.paths import CONFIGS
+    import yaml
+    model = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["ollama"]["text_model"]
+    return chat_json(model, prompt, Picks, think=False)
+
+
 def pick(cands, language, ask=None):
     """The LLM chooses and writes titles. Wrong ids are ignored, doubles removed; if it chose too few (or the LLM is
     not available), the most interesting remaining candidates are added with fallback titles."""
     lo, hi = min(CFG["min_picks"], len(cands)), min(CFG["max_picks"], len(cands))
     by_id, chosen = {c["id"]: c for c in cands}, []
     try:
-        if ask is None:
-            from ..brain.llm_client import chat_json                  # Eslam's client (needs the ollama package)
-            from ..common.paths import CONFIGS
-            import yaml
-            model = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["ollama"]["text_model"]
-            ask = lambda prompt: chat_json(model, prompt, Picks, think=False)
+        ask = ask or default_ask
         brief = [{k: c[k] for k in ("id", "start", "end", "text", "translation")} for c in cands]
         for p in ask(PROMPT.format(lo=lo, hi=hi) + json.dumps(brief, ensure_ascii=False)).picks:
             if p.id in by_id and p.id not in [c["id"] for c, _ in chosen] and len(chosen) < hi:

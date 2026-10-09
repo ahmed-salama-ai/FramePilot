@@ -6,16 +6,30 @@ step: 0.1        # seconds between rows in features.parquet / scores.parquet / l
 ingest:
   sample_rate: 16000   # audio.wav: 16 kHz mono
   sync_seconds: 60     # search the clap in the first N seconds
-  render_height: 720   # video/camN.mp4 (render)
-  proxy_width: 640     # video/camN_640.mp4 (perception)
+  render_height: 1080  # video/camN.mp4: every video we make is cut from these (was 720; remake: python -m ai_director.ingest.proxy <session>)
+                       # (no 640px copies since 2026-10-09: every stage reads camN.mp4)
 
 video:
   encoder: auto        # auto = the NVIDIA GPU (h264_nvenc) if FFmpeg can use one, else the CPU (libx264).
                        # Or write h264_nvenc / libx264. Always 8-bit H.264 (browsers can't play 10-bit).
+  quality:             # H.264 quality (NVENC -cq / x264 -crf): LOWER = better picture and BIGGER file
+    program: 26        # the main video (program_nocaps.mp4 + program.mp4). Measured 2026-10-09 on s01, 10-min program:
+                       # 20 = 560-770 MB (VMAF 98), 23 = 390-540 MB (VMAF 97), 26 = 220-330 MB (VMAF 96), 28 = VMAF 95
+    clips: 21          # highlights + the agent's clips
+    cameras: 22        # the synced camera copies video/camN.mp4 (ingest), the source of every video above
+
+perception:
+  workers: 3                 # cameras looked at the same time, each in its own process (1 = one after another).
+                             # RTX 4060, 60 s of s01: one after another 97.7 s, 3 at once 37.0 s, the same numbers
+  face_roles: [closeup]      # cameras whose faces are measured (head crops). Not the wide camera: its faces made the
+                             # wide shot win too often (s03 speaker coverage 78.0 -> 72.9 %, wide on screen 12 -> 21 %)
 
 scorer:
   weights: {speaker: 3.0, frontal: 1.0, quality: 0.8, gesture: 0.5, shake: 1.0}
   face_full: 0.15      # face_area at which the speaker term is at full strength
+  no_face_size: 0.33   # someone on camera counts at least this much (face not found, or found but small). Since the
+                       # head-crop faces (2026-10-09) a found small face (s03: 1.6 % of the frame -> 0.11) scored LESS
+                       # than no face found; with this floor: speaker coverage s01-s03 86.6/88.5/78.2 -> 87.0/92.1/85.9 %
 
 switcher:
   min_shot: 2.0        # rule 1: never cut before 2 s
@@ -23,6 +37,19 @@ switcher:
   hold: 0.4            # ... for 0.4 s
   max_shot: 15.0       # rule 3: variety
   low_score: 0.3       # rule 4: all scores low -> wide
+
+split:                 # split screen: the two close-ups side by side in program.mp4 (16:9 only), SOMETIMES
+  enabled: true      # false = never split
+  order: [3, 2]        # left camera, right camera (our recordings: the cam3 person looks right, the cam2 people left)
+  turn_max: 5.0        # Rule A, fast back-and-forth: every turn at most 5 s (3.5 s = fewer, surer moments) ...
+  min_turns: 3         # ... at least 3 turns in a row, switching between the two close-ups every time ...
+  min_seconds: 4.0     # ... lasting at least 4 s (also the shortest split) ...
+  max_gap: 2.0         # ... a pause longer than 2 s ends it
+  mouth_check: true    # ... and the talker's mouth moves more than the other's in most turns (catches wrong speaker labels)
+  laugh: 0.25          # Rule B, the listener reacts: audio laughter >= 0.25 or the AI Brain says laughter / reaction ...
+  react_pad: 1.0       # ... +-1 s around it
+  join_gap: 3.0        # two splits less than 3 s apart become one (no split - shot - split flicker)
+  line: 4              # px: the dark line between the two halves
 
 audio:
   # Speech-to-text AND who speaks when: Gemini 3.5 Transcribe (Google cloud). Chosen 2026-10-05 after the Colab
@@ -39,19 +66,32 @@ audio:
   # Gemini names the speakers of every piece separately -> voice fingerprints join the same voice across pieces
   voice_model: microsoft/wavlm-base-plus-sv
   same_voice: 0.75            # cosine similarity above this = the same person (only matters before num_speakers is reached)
+  merge_voice: 0.95           # one request: an extra label joins a voice only if this similar (same person 0.98, two men 0.89-0.93)
   speaker_model: gemini-3.1-flash-lite   # reads the transcript -> speakers.json (host, guest, ... + names)
+  # Arabic sessions: Transcribe (ar-EG) drops English words or writes them in Arabic letters ("ايكورسي"). This model
+  # listens again to ~1-minute windows WITH that draft and writes the English words in English letters (null = off).
+  english_words_model: gemini-3.5-flash   # tested 2026-10-09: 13 s per minute; free tier only 20 requests/day per key
+  english_words_fallback: gemini-3.1-flash-lite   # when 3.5-flash has no quota left: fixes less (s03: 98 vs 152 words)
+  english_words_window: 60   # ~10 requests per 10-min session; bigger windows (fewer requests) not tested yet
+  translate_model: gemini-3.1-flash-lite   # translation; ollama.text_model (qwen3:8b) only if Gemini can't be used
+                                           # (null = only qwen). Better than qwen on 19 of 37 test lines, worse on 1
   # Keys live in the .env file (never in Git): GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, ... any number.
   api_key_prefix: GEMINI_API_KEY
 
 ollama:
   text_model: qwen3:8b      # plan B: qwen3:4b (translation, highlight titles, the agent)
-  vision_model: qwen3-vl:4b # AI Brain (understands Arabic). Tested before: moondream (English only). Plan B: gemma3:4b
+  vision_model: qwen3-vl:4b-instruct   # AI Brain (understands Arabic). NOT plain "qwen3-vl:4b": in Ollama that is the
+                            # THINKING model (2026-10-09: 550-2,800 hidden tokens per picture, 13-20 s; instruct 1-2 s and
+                            # more accurate on s01-s03). Tested before: moondream (English only). Plan B: gemma3:4b
   embed_model: bge-m3
 
 brain:
   every_seconds: 5          # one scene.jsonl line every 5 s of video
   text_window: 10           # what was said in the 10 s before each moment goes into the prompt
   english_text: false       # true = Arabic sessions send the ENGLISH translation (for English-only models like moondream)
+  tile: [640, 360]          # one camera in the picture the vision model sees (was 336x189: too small to see what people do)
+  laugh: 0.25               # audio laughter (audio_events.json) at or above this -> "reaction" at once (s01: 294-296, 359-360 s)
+  laugh_agree: 0.1          # the vision model's "laughter" counts only if the audio hears at least this much around it
 
 agent:                       # the Editor Agent (chat). Its LLM = ollama.text_model, its search = ollama.embed_model
   max_steps: 6               # at most 6 tool calls per request, then it must answer
@@ -60,8 +100,16 @@ agent:                       # the Editor Agent (chat). Its LLM = ollama.text_mo
   temperature: 0.0           # 0 = the steadiest tool calls (the same request gives the same answer)
   num_ctx: 8192              # how much text the model reads at once: rules + tools + chat + tool results
   keep_alive: 2m             # the models leave the GPU 2 min after the last request (a new upload needs it)
+  timeout: 120               # seconds one Ollama request may take (loading the model included), then an error
+                             # ("it took too long") instead of waiting forever
   window_seconds: 30         # search compares the request with ~30 s pieces of the transcript (whole sentences)
   window_step: 10            # ... a new piece starts every ~10 s
+  topic_drop: 0.03           # a found piece grows over its neighbours that match almost as well (at most 0.03 lower
+  topic_max: 90              # similarity) = the same topic, up to 90 s (one piece is often only part of a talk).
+                             # Agent tests: 0.03 = 14/14 right moments, 76 % of clip time on topic; 0.05 = 72 %, longer clips
+  focus_share: {only: 100, mostly: 75, more: 60}   # % of a clip on the focused person's camera (an LLM reads the level;
+                                                   # 100 = that camera only, less = the AI edit with that camera boosted)
+  boosts: [1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0]       # tried in this order until that share is reached (s01: x2 = 59-82%)
 
 eval:                        # the evaluation (stage 8) and the results table
   short_cut: 1.0             # a shot shorter than 1 s = flicker (the table's "cuts shorter than 1 s")
@@ -83,3 +131,4 @@ highlights:
   max_length: 45
   min_picks: 3               # the LLM chooses 3-5 clips (fewer if there are fewer candidates)
   max_picks: 5
+  title_model: gemini-3.1-flash-lite   # picks + titles (1 request per session); ollama.text_model if Gemini can't be used

@@ -13,7 +13,8 @@ from ..common.paths import CONFIGS
 CFG = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["audio"]
 PREFIX = CFG["api_key_prefix"]
 KEY_NAME = re.compile(rf"^{PREFIX}(_\d+)?$")
-BUSY = ("429", "RESOURCE_EXHAUSTED", "500", "503", "504", "UNAVAILABLE", "INTERNAL", "overloaded", "DEADLINE")
+BUSY = ("429", "RESOURCE_EXHAUSTED", "500", "503", "504", "UNAVAILABLE", "INTERNAL", "overloaded", "DEADLINE",
+        "timed out", "Timeout")                         # a request that took longer than its timeout: try again
 _CLIENTS = []
 
 
@@ -63,3 +64,14 @@ def with_keys(fn, start=0, keyed=None, rounds=6, wait=30):
             time.sleep(wait * (rnd + 1))
     raise RuntimeError("Gemini: no key can be used right now (rate or daily limits). Try again later; finished "
                        "pieces are saved. If every key says 'limit: 0', the model needs billing switched on.")
+
+
+def ask_json(model, prompt, schema, temperature=0.2, timeout=120):
+    """A text question -> an answer forced into the Pydantic schema (used for translation and highlight titles).
+    A bad answer -> ValidationError; no usable key (daily limit, no internet) -> RuntimeError and others."""
+    def call(client):
+        r = client.models.generate_content(model=model, contents=prompt, config={
+            "response_mime_type": "application/json", "response_schema": schema, "temperature": temperature,
+            "http_options": {"timeout": timeout * 1000}})
+        return r.parsed if r.parsed is not None else schema.model_validate_json(r.text or "{}")
+    return with_keys(call)[0]

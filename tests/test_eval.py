@@ -154,6 +154,6 @@ def test_tuning_tries_settings_and_puts_the_old_ones_back(s):
     before = (dict(scorer.W), dict(director.RULES))
     ranked = tune([s], {"min_shot": [12.0, 2.0], "margin": [0.2]})   # a 12 s minimum shot misses the changes
     assert [v for v, _ in ranked] == [{"min_shot": 2.0, "margin": 0.2}, {"min_shot": 12.0, "margin": 0.2}]
-    assert ranked[0][1]["agreement"] == 0.85 and ranked[1][1]["agreement"] == 0.258      # best first
+    assert ranked[0][1]["agreement"] == 0.867 and ranked[1][1]["agreement"] == 0.425     # best first (0.85 / 0.258 before the split at 37-41 s)
     assert ranked[0][1] == try_setting([s], {"min_shot": 2.0, "margin": 0.2})
     assert (dict(scorer.W), dict(director.RULES)) == before            # configs unchanged

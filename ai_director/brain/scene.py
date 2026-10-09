@@ -29,14 +29,30 @@ class Scene(BaseModel):                       # the answer format the model must
     highlight: bool
 
 
-PROMPT = """You are a TV director watching a multi-camera show. The image shows the cameras (CAM {wide} is the wide shot).
-What people said in the last {window} seconds: "{text}"
+PROMPT = """You are a TV director choosing the editing style for this moment of a multi-camera show. The image shows the
+cameras (CAM {wide} is the wide shot of everyone).
+What people said in the last {window} seconds (only to understand the talk; decide the style from what you SEE):
+"{text}"
+Look at what the people DO:
+- demo: someone is touching, pointing at, or turning a laptop, a screen or an object towards the others, or holds an
+  object up. A laptop or screen that just lies on the table while people talk is NOT a demo, and people only TALKING
+  about an app or a product is NOT a demo.
+- wide_energy: several people move a lot at the same time
+- reaction: someone laughs or is clearly surprised
+- conversation: people talk normally (sitting or standing)
 Return JSON:
-scene: one short English sentence;
-event;
+scene: one short English sentence about what the people do;
+event: talking (someone speaks), laughter, demo, standing, silence (nobody speaks), other;
 energy from 0 (calm) to 1 (very lively);
-mode: best editing style now: conversation (normal talk), reaction (laughing, surprise), wide_energy (many people move or react), demo (someone shows an object or a screen);
+mode: one of the four styles above;
 highlight: true only if this moment is memorable."""
+# 2026-10-08 (Ahmed Salama): the old prompt ("best editing style now", no examples) got "conversation" in 337 of 339
+# pictures; with what each style LOOKS like + 2x bigger camera tiles: 19/20 right on s03 test moments (that test also
+# had "someone standing" under demo; Ahmed asked for no standing modes, so standing is conversation now)
+# 2026-10-09 (Ahmed Salama): with qwen3-vl:4b-instruct; demo = touching / pointing at / turning the laptop, NOT a laptop
+# lying on the table and NOT only talking about an app (the old wording: a laptop on the table and an app in the
+# transcript gave "demo" — s03 ~2 of 11 right, s02 had 3 with no laptop at all). All 339 moments of s01-s03: no false demo
+# in s01/s02, s03 ~12 of 20 demos right; 26 hand-labelled moments 24/26 (thinking model + old prompt 17/26).
 
 FALLBACK = {"scene": "unknown", "event": "other", "energy": 0.3, "mode": "conversation", "highlight": False}
 
@@ -72,7 +88,7 @@ def run(s: Path):
     wide = next(c["id"] for c in meta["cameras"] if c["role"] == "wide")
     model = OLLAMA["vision_model"]
     think = False if model.startswith("qwen3") else None              # only qwen3 models can "think"
-    caps = {c["id"]: cv2.VideoCapture(str(s / f"video/cam{c['id']}_640.mp4")) for c in meta["cameras"]}
+    caps = {c["id"]: cv2.VideoCapture(str(s / f"video/cam{c['id']}.mp4")) for c in meta["cameras"]}   # 1080p
     part = s / "scene.partial.jsonl"
     (s / "tmp").mkdir(exist_ok=True)
     done = {r["t"] for r in read_rows(part)} if part.exists() else set()   # resumable: skip times already done
@@ -82,7 +98,7 @@ def run(s: Path):
         t = round(float(t), 1)
         if t in done:
             continue
-        grid = grid_at(caps, t, s / "tmp" / "grid.jpg")
+        grid = grid_at(caps, t, s / "tmp" / "grid.jpg", cell=tuple(CFG["tile"]))
         prompt = PROMPT.format(wide=wide, window=CFG["text_window"], text=said(tr, t, english, CFG["text_window"]))
         try:
             sc = chat_json(model, prompt, Scene, images=[grid], think=think).model_dump()

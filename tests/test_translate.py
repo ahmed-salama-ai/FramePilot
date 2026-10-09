@@ -23,7 +23,40 @@ def fake_model(monkeypatch, batch, one):
         return batch(prompt) if schema is tr.Lines else tr.One(text=one(prompt))
     monkeypatch.setattr(tr, "chat_json", chat_json)
     monkeypatch.setattr(tr, "unload", lambda model: None)
+    monkeypatch.setattr(tr, "GEMINI_MODEL", None)                     # these tests: the local model only
     return asked
+
+
+def test_gemini_first_then_the_local_model_when_it_stops(tmp_path, monkeypatch):
+    """Gemini answers while it can; when no key works any more (daily limit), the local model does the rest."""
+    s = session(tmp_path, [f"سطر {i}" for i in range(15)])          # 2 batches of 10 + 5
+    local, unloaded = [], []
+    monkeypatch.setattr(tr, "GEMINI_MODEL", "gemini-test")
+    monkeypatch.setattr(tr, "chat_json", lambda model, prompt, schema, think=None: local.append(model) or tr.Lines(
+        lines=[tr.Line(n=k, text=f"local {k}") for k in range(1, 11)]))
+    monkeypatch.setattr(tr, "unload", unloaded.append)
+    calls = []
+
+    def gemini(prompt, schema):
+        calls.append(schema)
+        if len(calls) > 1:
+            raise RuntimeError("Gemini: no key can be used right now (rate or daily limits).")
+        return tr.Lines(lines=[tr.Line(n=k, text=f"gemini {k}") for k in range(1, 11)])
+    monkeypatch.setattr(tr, "ask_gemini", gemini)
+    tr.run_translate(s)
+    got = [x["translation"] for x in read_json(s / "transcript.json")]
+    assert got[:10] == [f"gemini {k}" for k in range(1, 11)] and got[10:] == [f"local {k}" for k in range(1, 6)]
+    assert len(calls) == 2 and local == [tr.TEXT_MODEL] and unloaded == [tr.TEXT_MODEL]   # Gemini not asked again
+
+
+def test_gemini_only_leaves_the_gpu_alone(tmp_path, monkeypatch):
+    s = session(tmp_path, ["أهلا بيكم"])
+    monkeypatch.setattr(tr, "GEMINI_MODEL", "gemini-test")
+    monkeypatch.setattr(tr, "ask_gemini", lambda p, schema: tr.Lines(lines=[tr.Line(n=1, text="Welcome")]))
+    monkeypatch.setattr(tr, "chat_json", lambda *a, **k: (_ for _ in ()).throw(AssertionError("local model used")))
+    monkeypatch.setattr(tr, "unload", lambda model: (_ for _ in ()).throw(AssertionError("nothing to unload")))
+    tr.run_translate(s)
+    assert read_json(s / "transcript.json")[0]["translation"] == "Welcome"
 
 
 def test_numbers_are_removed_and_wrong_answers_asked_again(tmp_path, monkeypatch):
@@ -31,7 +64,7 @@ def test_numbers_are_removed_and_wrong_answers_asked_again(tmp_path, monkeypatch
     asked = fake_model(monkeypatch,
                        lambda p: tr.Lines(lines=[tr.Line(n=1, text="1. Welcome"),       # number copied into the text
                                                  tr.Line(n=2, text="النهارده")]),       # not translated; no row 3
-                       lambda p: "2) Today" if "النهارده" in p else "Thanks")
+                       lambda p: "2) Today" if p.endswith("النهارده") else "Thanks")   # the line asked about
     tr.run_translate(s)
     assert [x["translation"] for x in read_json(s / "transcript.json")] == ["Welcome", "Today", "Thanks"]
     assert asked == ["Lines", "One", "One"]                           # rows 2 and 3 asked again, alone

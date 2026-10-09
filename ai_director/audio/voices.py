@@ -76,3 +76,61 @@ def link_speakers(pieces, audio, sr, n_speakers=None, same_voice=0.75, min_secon
             cents[g] = c / (np.linalg.norm(c) or 1.0)
             weights[g] += secs[l]
     return out
+
+
+def merge_extra_voices(spans, audio, sr, n_speakers, same_voice=0.95, embed=wavlm_embed):
+    """One request = Gemini's own speaker labels, and it sometimes makes one person two labels (s01: the guest got a
+    10 s label of his own, s02: the interviewer a 6 s one). More labels than the people typed at upload -> the
+    smallest label joins the voice it sounds most like, but ONLY if the two are nearly the same (cosine >= same_voice).
+    Measured 2026-10-08 (WavLM, s01-s03): the same person 0.98, two different men 0.89-0.93, and a 6 s label of the
+    same woman only 0.37 -> a LOWER threshold would join different people. A voice that matches nobody stays a
+    speaker of its own (e.g. someone talking from behind the camera).
+    spans = {label: [(start, end), ...]}. Returns {label: the label it joins}."""
+    secs = {l: sum(b - a for a, b in v) for l, v in spans.items() if v}
+    if not n_speakers or len(secs) <= n_speakers:
+        return {}
+    alive = sorted(secs, key=secs.get)                                   # the smallest label first
+    emb = dict(zip(alive, embed([speaker_audio(audio, sr, sorted(spans[l], key=lambda x: x[0] - x[1]))
+                                 for l in alive], sr)))                  # its longest turns: the clearest voice
+    joined = {}
+    while len(alive) > n_speakers:
+        for x in alive:
+            y = max((y for y in alive if y != x), key=lambda y: float(emb[x] @ emb[y]))
+            if float(emb[x] @ emb[y]) >= same_voice:
+                joined[x] = y
+                alive.remove(x)
+                break
+        else:
+            break                                                        # every voice left is a different person
+    for x in list(joined):                                               # x -> y -> z: x joins z
+        while joined[x] in joined:
+            joined[x] = joined[joined[x]]
+    return joined
+
+
+def merge_session(s):
+    """An existing session: join its extra labels in transcript.json, diarization.json and speakers.json
+    (no new Gemini request, no new translation). Then run perception again (speaker_map.json uses the labels)."""
+    import soundfile as sf
+    from ..common.io import read_json, write_json
+    from .asr import make_diarization                                    # here: asr.py imports this file
+    meta = read_json(s / "session.json")
+    up = read_json(s / "upload.json") if (s / "upload.json").exists() else {}
+    rows, spans = read_json(s / "transcript.json"), {}
+    for d in read_json(s / "diarization.json"):
+        spans.setdefault(d["speaker"], []).append((d["start"], d["end"]))
+    audio, sr = sf.read(s / "audio.wav", dtype="float32")
+    joined = merge_extra_voices(spans, audio.mean(axis=1) if audio.ndim > 1 else audio, sr,
+                                meta.get("num_speakers") or up.get("num_speakers"), CFG["merge_voice"])
+    if joined:
+        rows = [{**r, "speaker": joined.get(r["speaker"], r["speaker"])} for r in rows]
+        write_json(s / "diarization.json", make_diarization(rows))
+        if (s / "speakers.json").exists():
+            write_json(s / "speakers.json", [x for x in read_json(s / "speakers.json") if x["speaker"] not in joined])
+        write_json(s / "transcript.json", rows)
+    return joined
+
+
+if __name__ == "__main__":       # python -m ai_director.audio.voices data/sessions/s01
+    from ..common.io import session_from_argv
+    print("joined:", merge_session(session_from_argv()) or "nothing (every label is a different voice)")

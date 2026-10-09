@@ -38,11 +38,22 @@ def piece_text(w):
     return f"{text} | {translation}" if translation else text
 
 
+_CLIENT = []
+
+
+def ollama_client():
+    """One Ollama connection with a time limit (agent.timeout seconds per request, 2026-10-09): a stuck model gives
+    an error (the chat answers "it took too long") instead of waiting forever. Made once."""
+    if not _CLIENT:
+        import ollama                 # only here: the rest of the agent (and its tests) work without the package
+        _CLIENT.append(ollama.Client(timeout=CFG["timeout"]))
+    return _CLIENT[0]
+
+
 def embed(texts):
     """Texts -> vectors of length 1 (bge-m3 via Ollama), 32 texts per request."""
-    import ollama                     # only here: the rest of the agent (and its tests) work without the package
-    vecs = [np.array(ollama.embed(model=OLLAMA["embed_model"], input=texts[i:i + 32],
-                                  keep_alive=CFG["keep_alive"]).embeddings, dtype="float32")
+    vecs = [np.array(ollama_client().embed(model=OLLAMA["embed_model"], input=texts[i:i + 32],
+                                           keep_alive=CFG["keep_alive"]).embeddings, dtype="float32")
             for i in range(0, len(texts), 32)]
     v = np.vstack(vecs)
     return v / np.maximum(np.linalg.norm(v, axis=1, keepdims=True), 1e-10)
@@ -60,8 +71,26 @@ def moment(w, score):
             "score": round(float(score), 3)}
 
 
+def topic(pieces, scores, i, taken=(), drop=None, longest=None):
+    """Piece i grown over its neighbours about the SAME topic: the better neighbour first, while its score is at most
+    agent.topic_drop below piece i's, up to agent.topic_max seconds, never into a moment already found (taken).
+    One 30 s piece is often only part of a talk (2026-10-09: "subscription and profit" got the last 30 s of a 90 s
+    talk). -> (first piece, last piece)."""
+    drop, longest = drop or CFG["topic_drop"], longest or CFG["topic_max"]
+    a = b = i
+    while True:
+        near = [j for j in (a - 1, b + 1) if 0 <= j < len(pieces) and scores[j] >= scores[i] - drop
+                and pieces[max(b, j)]["end"] - pieces[min(a, j)]["start"] <= longest
+                and not any(pieces[j]["start"] < m["end"] and m["start"] < pieces[j]["end"] for m in taken)]
+        if not near:
+            return a, b
+        j = max(near, key=lambda j: scores[j])
+        a, b = min(a, j), max(b, j)
+
+
 def search(s, query, top_k=5, embed=embed):
-    """The top_k pieces most similar in meaning to the query, best first, never overlapping each other.
+    """The top_k moments most similar in meaning to the query, best first, never overlapping each other. A moment =
+    the best piece grown over its neighbours about the same topic (topic()); its text = the best piece's.
     The pieces' vectors are saved in search_index.npy (made once, ~1 s per minute of video) and made again only when
     transcript.json or the settings change (their fingerprint is in tmp/search_index.key)."""
     segs = read_json(s / "transcript.json")
@@ -84,7 +113,8 @@ def search(s, query, top_k=5, embed=embed):
         w = pieces[i]
         if any(w["start"] < m["end"] and m["start"] < w["end"] for m in out):
             continue                                                  # overlaps a better piece: same moment
-        out.append(moment(w, scores[i]))
+        a, b = topic(pieces, scores, i, out)
+        out.append({**moment(w, scores[i]), "start": round(pieces[a]["start"], 2), "end": round(pieces[b]["end"], 2)})
         if len(out) == top_k:
             break
     return out

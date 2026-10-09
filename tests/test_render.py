@@ -83,6 +83,15 @@ def test_make_cuts_boost_and_mode(tmp_path):
     assert (s / "cuts_v2.json").exists() and read_json(s / "cuts.json") == read_json(MOCK / "cuts.json")  # done file untouched
 
 
+def test_video_quality_comes_from_the_config():
+    """configs/default.yaml -> video.quality: one number per kind of video (program 26 since 2026-10-09)."""
+    import yaml
+    from ai_director.common import io
+    from ai_director.common.paths import CONFIGS
+    cfg = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["video"]["quality"]
+    assert {k: io.quality(k) for k in io.QUALITY} == cfg and set(cfg) == set(io.QUALITY)
+
+
 def test_h264_settings(monkeypatch):
     import ai_director.common.io as io
     monkeypatch.setattr(io, "video_encoder", lambda: "h264_nvenc")                    # an NVIDIA GPU
@@ -102,3 +111,38 @@ def test_render_writes_8_bit_video(tmp_path):
     pix = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=pix_fmt",
                           "-of", "csv=p=0", str(out)], capture_output=True, text=True).stdout.strip()
     assert pix == "yuv420p"                                                           # 8-bit: plays in browsers
+
+
+def test_render_clip_from_shots(tmp_path):
+    """The agent's "mostly one person" edit: every shot from its own camera, joined in one run, captions on top."""
+    import pytest
+    from ai_director.director.render import render_clip
+    s = clip_session(tmp_path)
+    shots = [{"start": 12.0, "end": 16.5, "cam": 3}, {"start": 16.5, "end": 21.0, "cam": 2},
+             {"start": 21.0, "end": 27.0, "cam": 1}]
+    wide = probe(render_clip(s, 12.0, 27.0, "clips/m_169.mp4", source=shots))
+    assert (wide["width"], wide["height"]) == (1280, 720) and abs(wide["duration"] - 15.0) < 0.1
+    tall = probe(render_clip(s, 12.0, 27.0, "clips/m_916.mp4", fmt="9:16", source=shots, crop_x={3: 0.62, 2: 0.4},
+                             langs="ar"))                                   # each camera cropped on its own face
+    assert (tall["width"], tall["height"]) == (720, 1280) and abs(tall["duration"] - 15.0) < 0.1
+    with pytest.raises(ValueError, match="must cover"):
+        render_clip(s, 10.0, 27.0, "clips/x.mp4", source=shots)
+
+
+def test_1080p_clips(tmp_path):
+    """Since 2026-10-08 the camera copies are 1080p: a 9:16 clip is a 608x1080 strip -> 1080x1920 (720p: 404 -> 720x1280)."""
+    from ai_director.common.io import run, write_json
+    from ai_director.director.render import crop_916, render_clip
+    assert crop_916(None) == "crop=404:720:438:0,scale=720:1280"                       # the old 720p numbers
+    assert crop_916(None, 1920, 1080) == "crop=608:1080:656:0,scale=1080:1920"
+    assert crop_916(0.0, 1920, 1080).startswith("crop=608:1080:0:0") and ":1312:" in crop_916(1.0, 1920, 1080)
+    (tmp_path / "video").mkdir()
+    for c in (1, 2):
+        run(["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=1920x1080:rate=30:duration=3", "-f", "lavfi",
+             "-i", "sine=duration=3", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac",
+             "-shortest", f"video/cam{c}.mp4"], cwd=tmp_path)
+    write_json(tmp_path / "session.json", {"duration": 3.0, "reference_cam": 1, "language": "ar"})
+    tall = probe(render_clip(tmp_path, 0.5, 2.5, "clips/t.mp4", fmt="9:16", source=2, crop_x=0.7, langs="none"))
+    wide = probe(render_clip(tmp_path, 0.5, 2.5, "clips/w.mp4", source=[{"start": 0.5, "end": 1.5, "cam": 1},
+                                                                      {"start": 1.5, "end": 2.5, "cam": 2}], langs="none"))
+    assert (tall["width"], tall["height"]) == (1080, 1920) and (wide["width"], wide["height"]) == (1920, 1080)

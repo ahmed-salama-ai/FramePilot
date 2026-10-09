@@ -21,5 +21,6 @@ def test_mock_follows_contract():
 
 def test_mock_raw_and_synced_videos():
     for c in read_json(MOCK / "session.json")["cameras"]:
-        for f in (f"raw/cam{c['id']}.mp4", f"video/cam{c['id']}.mp4", f"video/cam{c['id']}_640.mp4"):
+        for f in (f"raw/cam{c['id']}.mp4", f"video/cam{c['id']}.mp4"):
             assert (MOCK / f).exists(), f
+        assert not (MOCK / f"video/cam{c['id']}_640.mp4").exists()          # no 640px copies since 2026-10-09
