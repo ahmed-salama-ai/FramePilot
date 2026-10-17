@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="780" viewBox="0 0 1280 780">
+<defs><linearGradient id="acc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#EF8A2C"/><stop offset="1" stop-color="#E5406A"/></linearGradient><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8C959F"/></marker><marker id="head-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10,0 L0,5 L10,10 z" fill="#8C959F"/></marker></defs>
+<rect x="24" y="16" width="1232" height="92" rx="14" fill="#F6F8FA" stroke="#D8DEE4" stroke-width="1"/>
+<text x="42" y="40" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#6E7781" text-anchor="start" letter-spacing="1.4">INTERFACES</text>
+<rect x="40" y="50" width="894" height="48" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="56" y="77" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start"></text>
+<text x="56" y="79" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">Web studio</text>
+<text x="150" y="79" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">upload, live progress, results, caption editor, labelling tool, Editor Agent chat</text>
+<rect x="958" y="50" width="282" height="48" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="974" y="77" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start"></text>
+<text x="974" y="79" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">Command line</text>
+<text x="1076" y="79" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">any stage or all</text>
+<rect x="24" y="136" width="1232" height="120" rx="14" fill="#F6F8FA" stroke="#D8DEE4" stroke-width="1"/>
+<text x="42" y="160" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#6E7781" text-anchor="start" letter-spacing="1.4">APPLICATION</text>
+<rect x="40" y="170" width="275" height="74" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="56" y="197" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">Editor Agent</text>
+<text x="56" y="218" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">qwen3:8b with tool calling: search,</text>
+<text x="56" y="236" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">clip, restyle, list clips</text>
+<rect x="339" y="170" width="275" height="74" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="355" y="197" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">FastAPI server</text>
+<text x="355" y="218" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">Pages and REST API, uploads,</text>
+<text x="355" y="236" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">downloads, versions</text>
+<rect x="638" y="170" width="275" height="74" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="654" y="197" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">SQLite</text>
+<text x="654" y="218" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">Projects, job queue,</text>
+<text x="654" y="236" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">chat history</text>
+<rect x="937" y="170" width="275" height="74" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="953" y="197" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">Worker</text>
+<text x="953" y="218" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">One job at a time: pipeline, update</text>
+<text x="953" y="236" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">video, trailer, thumbnails, publish</text>
+<line x1="337" y1="207.0" x2="319" y2="207.0" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<line x1="618" y1="207.0" x2="634" y2="207.0" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)" marker-start="url(#head-start)"/>
+<line x1="917" y1="207.0" x2="933" y2="207.0" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)" marker-start="url(#head-start)"/>
+<line x1="476.5" y1="98" x2="476.5" y2="168" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<text x="484.5" y="161" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#6E7781" text-anchor="start">HTTP</text>
+<rect x="24" y="286" width="1232" height="160" rx="14" fill="#F6F8FA" stroke="#D8DEE4" stroke-width="1"/>
+<text x="42" y="310" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#6E7781" text-anchor="start" letter-spacing="1.4">PROCESSING PIPELINE</text>
+<text x="1238" y="310" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#6E7781" text-anchor="end">8 stages, each its own process, resumable</text>
+<line x1="1074.5" y1="246" x2="1074.5" y2="285" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<text x="1082.5" y="276" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="10.5" font-weight="400" fill="#6E7781" text-anchor="start">runs</text>
+<line x1="1228" y1="98" x2="1228" y2="285" stroke="#8C959F" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#head)"/>
+<rect x="40.0" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="64.0" cy="348" r="12" fill="url(#acc)"/>
+<text x="64.0" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+<text x="54.0" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">Ingest + Sync</text>
+<text x="54.0" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Audio sync</text>
+<text x="54.0" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Synced 1080p copies</text>
+<path d="M181.75,372.0 L187.75,378.0 L181.75,384.0" fill="none" stroke="#EF8A2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="191.75" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="215.75" cy="348" r="12" fill="url(#acc)"/>
+<text x="215.75" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">2</text>
+<text x="205.75" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">Audio + Captions</text>
+<text x="205.75" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Gemini transcription</text>
+<text x="205.75" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Translation, laughter</text>
+<path d="M333.5,372.0 L339.5,378.0 L333.5,384.0" fill="none" stroke="#EF8A2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="343.5" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="367.5" cy="348" r="12" fill="url(#acc)"/>
+<text x="367.5" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">3</text>
+<text x="357.5" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">Perception</text>
+<text x="357.5" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">YOLO11 pose</text>
+<text x="357.5" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">MediaPipe faces</text>
+<path d="M485.25,372.0 L491.25,378.0 L485.25,384.0" fill="none" stroke="#EF8A2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="495.25" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="519.25" cy="348" r="12" fill="url(#acc)"/>
+<text x="519.25" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">4</text>
+<text x="509.25" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">AI Brain</text>
+<text x="509.25" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Qwen3-VL scenes</text>
+<text x="509.25" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">every 5 seconds</text>
+<path d="M637.0,372.0 L643.0,378.0 L637.0,384.0" fill="none" stroke="#EF8A2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="647.0" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="671.0" cy="348" r="12" fill="url(#acc)"/>
+<text x="671.0" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">5</text>
+<text x="661.0" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">Switching</text>
+<text x="661.0" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Scorer + 5 rules</text>
+<text x="661.0" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Split screen</text>
+<path d="M788.75,372.0 L794.75,378.0 L788.75,384.0" fill="none" stroke="#EF8A2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="798.75" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="822.75" cy="348" r="12" fill="url(#acc)"/>
+<text x="822.75" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">6</text>
+<text x="812.75" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">Render</text>
+<text x="812.75" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">FFmpeg, NVENC</text>
+<text x="812.75" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Captions, brand kit</text>
+<path d="M940.5,372.0 L946.5,378.0 L940.5,384.0" fill="none" stroke="#EF8A2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="950.5" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="974.5" cy="348" r="12" fill="url(#acc)"/>
+<text x="974.5" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">7</text>
+<text x="964.5" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">Highlights</text>
+<text x="964.5" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Clips, trailer</text>
+<text x="964.5" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Publish kit</text>
+<path d="M1092.25,372.0 L1098.25,378.0 L1092.25,384.0" fill="none" stroke="#EF8A2C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1102.25" y="324" width="137.75" height="108" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<circle cx="1126.25" cy="348" r="12" fill="url(#acc)"/>
+<text x="1126.25" y="352.5" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">8</text>
+<text x="1116.25" y="384" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="650" fill="#1F2328" text-anchor="start">Evaluation</text>
+<text x="1116.25" y="404" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Speaker coverage</text>
+<text x="1116.25" y="420" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#59636E" text-anchor="start">Human agreement</text>
+<rect x="24" y="474" width="1232" height="124" rx="14" fill="#F6F8FA" stroke="#D8DEE4" stroke-width="1"/>
+<text x="42" y="584" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#6E7781" text-anchor="start" letter-spacing="1.4">SESSION FOLDER   data/sessions/sNN</text>
+<text x="1238" y="584" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#6E7781" text-anchor="end">input: raw/camN.mp4 + upload.json   |   each stage writes its own files, the done file last</text>
+<line x1="108.875" y1="434" x2="108.875" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="40.0" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="52.0" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">session.json</text>
+<text x="52.0" y="527" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">video/camN.mp4</text>
+<text x="52.0" y="544" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">audio.wav</text>
+<line x1="260.625" y1="434" x2="260.625" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="191.75" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="203.75" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">transcript.json</text>
+<text x="203.75" y="527" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">speakers.json</text>
+<text x="203.75" y="544" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">captions_*.srt</text>
+<line x1="412.375" y1="434" x2="412.375" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="343.5" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="355.5" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">features.parquet</text>
+<text x="355.5" y="527" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">speaker_map.json</text>
+<line x1="564.125" y1="434" x2="564.125" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="495.25" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="507.25" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">scene.jsonl</text>
+<line x1="715.875" y1="434" x2="715.875" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="647.0" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="659.0" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">scores.parquet</text>
+<text x="659.0" y="527" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">cuts.json</text>
+<text x="659.0" y="544" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">timeline.json</text>
+<line x1="867.625" y1="434" x2="867.625" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="798.75" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="810.75" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">program.mp4</text>
+<text x="810.75" y="527" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">versions/</text>
+<line x1="1019.375" y1="434" x2="1019.375" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="950.5" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="962.5" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">highlights/</text>
+<text x="962.5" y="527" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">trailer/</text>
+<text x="962.5" y="544" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">publish.json</text>
+<line x1="1171.125" y1="434" x2="1171.125" y2="488" stroke="#8C959F" stroke-width="1.6" marker-end="url(#head)"/>
+<rect x="1102.25" y="490" width="137.75" height="70" rx="8" fill="#EEF1F4" stroke="#D0D7DE" stroke-width="1"/>
+<text x="1114.25" y="510" font-family="Consolas, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="400" fill="#24292F" text-anchor="start">metrics.json</text>
+<rect x="24" y="624" width="1232" height="140" rx="14" fill="#F6F8FA" stroke="#D8DEE4" stroke-width="1"/>
+<text x="42" y="648" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="700" fill="#6E7781" text-anchor="start" letter-spacing="1.4">MODELS AND SERVICES</text>
+<text x="1238" y="648" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="400" fill="#6E7781" text-anchor="end">used by the stages above</text>
+<rect x="40.0" y="660" width="384.0" height="92" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="56.0" y="687" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">Local models</text>
+<text x="56.0" y="708" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">YOLO11s-pose, MediaPipe Face Landmarker</text>
+<text x="56.0" y="726" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">Silero VAD, PANNs CNN14, WavLM</text>
+<text x="56.0" y="744" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">FFmpeg with NVENC on NVIDIA GPUs</text>
+<rect x="448.0" y="660" width="384.0" height="92" rx="10" fill="#FFFFFF" stroke="#D0D7DE" stroke-width="1"/>
+<text x="464.0" y="687" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">Ollama (local LLMs)</text>
+<text x="464.0" y="708" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">qwen3:8b: Editor Agent, fallback text</text>
+<text x="464.0" y="726" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">qwen3-vl:4b-instruct: scene modes</text>
+<text x="464.0" y="744" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">bge-m3: search by meaning</text>
+<rect x="856.0" y="660" width="384.0" height="92" rx="10" fill="#FFFFFF" stroke="#E5406A" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="872.0" y="687" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="650" fill="#1F2328" text-anchor="start">Google Gemini (cloud)</text>
+<text x="872.0" y="708" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">3.5 Transcribe: words, times, speakers</text>
+<text x="872.0" y="726" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">3.5 Flash: English terms in Arabic</text>
+<text x="872.0" y="744" font-family="Segoe UI, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="400" fill="#59636E" text-anchor="start">3.1 Flash-Lite: roles, translation, titles</text>
+</svg>

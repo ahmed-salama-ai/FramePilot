@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}FramePilot — Projects Studio{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <span class="section-label" data-i18n="projects_title">استوديو المشاريع</span>
+    <h2 class="page-title" data-i18n="projects_title">المشاريع المصورة</h2>
+    <p class="page-subtitle" data-i18n="projects_subtitle">إدارة الفيديوهات المصورة وإنتاج البودكاست الذكي</p>
+  </div>
+  <a href="/new" class="btn btn-primary" data-i18n="btn_new_project">+ مشروع جديد</a>
+</div>
+
+{% if projects and projects|length > 0 %}
+<div class="projects-grid">
+  {% for p in projects %}
+  <article class="card project-card" id="card-{{ p.session_id }}" data-job-id="{{ p.job_id or '' }}" data-job-status="{{ p.job_status or '' }}">
+    <div class="project-thumbnail-wrapper">
+      {% if p.job_status == 'done' %}
+      <video class="project-thumbnail" muted preload="metadata" src="/files/{{ p.session_id }}/program_nocaps.mp4#t=1"></video>
+      {% else %}
+      <video class="project-thumbnail" muted preload="metadata" src="/files/{{ p.session_id }}/raw/cam1.mp4#t=1"></video>
+      {% endif %}
+      
+      {% if p.job_status == 'done' %}
+      <span class="status-badge status-done">
+        ✓ <span data-i18n="status_done">مكتمل</span>
+      </span>
+      {% elif p.job_status == 'running' %}
+      <span class="status-badge status-running">
+        <span class="spinner"></span>
+        <span data-i18n="status_running">قيد المعالجة</span>
+        <bdi class="job-progress">{{ p.job_progress or 0 }}%</bdi>
+      </span>
+      {% elif p.job_status == 'queued' %}
+      <span class="status-badge status-queued">
+        ⏳ <span data-i18n="status_queued">في الانتظار</span>
+      </span>
+      {% elif p.job_status == 'error' %}
+      <span class="status-badge status-error">
+        ⚠ <span data-i18n="status_error">خطأ</span>
+      </span>
+      {% else %}
+      <span class="status-badge status-queued">
+        <span data-i18n="status_not_processed">لم تتم معالجته</span>
+      </span>
+      {% endif %}
+    </div>
+
+    <div class="project-body">
+      <h3 class="project-name" dir="auto">{{ p.name }}</h3>
+      <div class="project-eta"></div>
+
+      <div class="project-meta-row">
+        <span class="chip">
+          🎥 <bdi>{{ p.num_cameras | default(3) }}</bdi> <span data-i18n="card_cameras">كاميرات</span>
+        </span>
+        <span class="chip chip-cam{{ p.wide_cam | default(1) }}">
+          📐 <span data-i18n="card_wide">واسعة</span>: Cam <bdi>{{ p.wide_cam | default(1) }}</bdi>
+        </span>
+        <span class="chip">
+          🌐 <bdi>{{ p.language|upper }}</bdi>
+        </span>
+        <span class="chip" style="font-family: var(--font-mono); font-size: 0.74rem;">
+          ID: <bdi>{{ p.session_id }}</bdi>
+        </span>
+        {% if p.source == 'imported' %}
+        <span class="chip" data-i18n="status_imported">جلسة محلية</span>
+        {% endif %}
+      </div>
+
+      <div class="project-actions">
+        {% if p.job_status == 'done' %}
+        <a href="/results/{{ p.session_id }}" class="btn btn-primary btn-sm" style="flex: 1;" data-i18n="card_open">
+          🎬 فتح الاستوديو
+        </a>
+        {% elif p.job_id %}
+        <a href="/jobs/{{ p.job_id }}" class="btn btn-secondary btn-sm" style="flex: 1;" data-i18n="status_running">
+          ⏳ متابعة المعالجة
+        </a>
+        {% else %}
+        <a href="/results/{{ p.session_id }}" class="btn btn-secondary btn-sm" style="flex: 1;" data-i18n="card_open">
+          🎬 عرض
+        </a>
+        {% endif %}
+
+        <a href="/label/{{ p.session_id }}" class="btn btn-secondary btn-sm" title="Labelling Tool" data-i18n="card_label">
+          🏷 تقييم
+        </a>
+
+        {% if p.source != 'imported' %}
+        <button onclick="deleteProject('{{ p.session_id }}')" class="btn btn-danger btn-sm" title="Delete Project">
+          🗑
+        </button>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">🎬</div>
+  <h3 class="empty-title" data-i18n="no_projects_title">لا توجد مشاريع حتى الآن</h3>
+  <p class="empty-desc" data-i18n="no_projects_desc">
+    ابدأ برفع تسجيلات كاميراتك المتعددة وسيقوم الذكاء الاصطناعي بإخراج الفيديو بالكامل.
+  </p>
+  <a href="/new" class="btn btn-primary" data-i18n="btn_new_project">+ إنشاء أول مشروع</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/index.js?v={{ static_version }}"></script>
+{% endblock %}

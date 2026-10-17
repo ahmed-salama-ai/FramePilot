@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}FramePilot — Caption Editor: {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <span class="section-label" data-i18n="captions_editor_title">محرر الترجمة</span>
+    <h2 class="page-title" dir="auto">{{ project.name }}</h2>
+    <p class="page-subtitle" data-i18n="captions_editor_hint">صحّح أي كلمة ثم احفظ. ملفات الترجمة تتغير فوراً، والفيديو المحمّل والهايلايتس بعد «تحديث الفيديو».</p>
+  </div>
+  <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+    <a href="/results/{{ sid }}" class="btn btn-secondary btn-sm" data-i18n="btn_back_results">رجوع للنتائج</a>
+    <button id="undoBtn" class="btn btn-secondary btn-sm" onclick="undoSave()" data-i18n="btn_undo">تراجع عن آخر حفظ</button>
+    <button id="restoreBtn" class="btn btn-secondary btn-sm" onclick="restoreOriginal()" data-i18n="btn_restore">استرجاع الأصل</button>
+    <button class="btn btn-primary btn-sm" onclick="updateVideo()" data-i18n="btn_update_video">🔄 تحديث الفيديو</button>
+  </div>
+</div>
+
+<div class="captions-layout">
+  <div class="captions-player">
+    <video id="capPlayer" class="main-video-player" controls preload="metadata" crossorigin="anonymous">
+      <source src="/files/{{ sid }}/program_nocaps.mp4" type="video/mp4">
+      <track id="capTrack" kind="subtitles" src="/files/{{ sid }}/captions.vtt" srclang="{{ project.language or 'ar' }}" label="Captions" default>
+    </video>
+    <input id="capSearch" type="search" class="form-control" style="margin-top: 12px;" data-i18n-ph="captions_search" placeholder="ابحث في الترجمة...">
+    <div class="captions-savebar">
+      <span id="changedCount" class="form-hint"></span>
+      <button id="saveCapsBtn" class="btn btn-primary btn-sm" onclick="saveCaptions()" disabled data-i18n="btn_save_captions">حفظ التعديلات</button>
+    </div>
+  </div>
+
+  <div id="capRows" class="caption-rows"></div>
+</div>
+
+<div id="capMeta" data-sid="{{ sid }}" style="display: none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/captions.js?v={{ static_version }}"></script>
+{% endblock %}

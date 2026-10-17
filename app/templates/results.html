@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block title %}FramePilot — Studio Results: {{ project.name }}{% endblock %}
+
+{% block head %}
+<script src="/static/vendor/chart.umd.min.js"></script>  {# saved locally: the chart works without internet #}
+{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <span class="section-label" data-i18n="results_title">استوديو الإخراج النهائي</span>
+    <h2 class="page-title" id="projectNameHeading" dir="auto">{{ project.name }}</h2>
+    <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px; flex-wrap: wrap;">
+      <span class="chip" style="font-family: var(--font-mono);">ID: <bdi id="sidLabel">{{ sid }}</bdi></span>
+      <span class="chip" id="sessionDurationChip">⏱ <bdi id="durationText">--:--</bdi></span>
+      <span class="chip" id="sessionCamsChip">🎥 <bdi id="camsText">{{ project.num_cameras | default(3) }} Cameras</bdi></span>
+      <span class="chip">🌐 <bdi>{{ project.language|upper }}</bdi></span>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+    <a href="/captions/{{ sid }}" class="btn btn-secondary btn-sm" data-i18n="btn_edit_captions">✏️ تعديل الترجمة</a>
+    <a href="/label/{{ sid }}" class="btn btn-secondary btn-sm" data-i18n="card_label">🏷 تقييم الكاميرات</a>
+    {% if project.source != 'imported' %}
+    <button onclick="deleteThisProject()" class="btn btn-danger btn-sm" title="Delete Project">
+      🗑 <span data-i18n="card_delete">حذف</span>
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- A job (update video / publish kit) is running for this video -->
+<div id="jobNotice" class="notice-bar" style="display: none;">
+  <span class="spinner"></span> <span id="jobNoticeText"></span>
+  <a id="jobNoticeLink" href="#" class="btn btn-secondary btn-sm" data-i18n="btn_follow_job">متابعة</a>
+</div>
+
+<div class="results-grid">
+  <!-- Left Column -->
+  <div>
+    <!-- Main Video Player -->
+    <div class="player-container">
+      <video id="mainPlayer" class="main-video-player" controls preload="metadata" crossorigin="anonymous">
+        <source id="videoSource" src="" type="video/mp4">
+        <track id="captionsTrack" kind="subtitles" src="/files/{{ sid }}/captions.vtt" srclang="{{ project.language or 'ar' }}" label="Captions (AR + EN)" default>
+      </video>
+    </div>
+
+    <!-- Versions: every edit of the whole video -->
+    <div class="card version-bar">
+      <div class="version-row">
+        <label class="form-label" for="videoVersionSelect" style="margin: 0;" data-i18n="versions_title">النسخة</label>
+        <select id="videoVersionSelect" class="form-control version-select"></select>
+        <span id="versionInfo" class="form-hint" style="flex: 1;"></span>
+        <div class="view-toggle">
+          <button class="btn btn-secondary btn-sm" data-view="caps" onclick="setView('caps')" data-i18n="view_with_captions">بالترجمة</button>
+          <button class="btn btn-secondary btn-sm" data-view="clean" onclick="setView('clean')" data-i18n="view_without_captions">بدون ترجمة</button>
+        </div>
+      </div>
+      <div class="download-bar" style="margin: 12px 0 0;">
+        <select id="downloadLang" class="form-control version-select" aria-label="Captions language">
+          <option value="ar+en" data-i18n="captions_ar_en">ترجمة عربي + إنجليزي</option>
+          <option value="ar" data-i18n="captions_ar_only">ترجمة عربي فقط</option>
+          <option value="en" data-i18n="captions_en_only">ترجمة إنجليزي فقط</option>
+          <option value="none" data-i18n="captions_none">بدون ترجمة</option>
+        </select>
+        <button id="downloadVideoBtn" class="btn btn-primary btn-sm" onclick="downloadVideo()" data-i18n="btn_download_video">
+          ⬇ تحميل الفيديو
+        </button>
+        <a id="podcastLink" href="/api/sessions/{{ sid }}/podcast/v1" class="btn btn-secondary btn-sm" data-i18n="btn_podcast">
+          🎧 بودكاست MP3
+        </a>
+        <a id="exportLink" href="/api/sessions/{{ sid }}/export/v1" class="btn btn-secondary btn-sm" data-i18n="btn_export">
+          Premiere / DaVinci
+        </a>
+        <button id="updateVideoBtn" class="btn btn-secondary btn-sm" onclick="updateVideo()" data-i18n="btn_update_video">
+          🔄 تحديث الفيديو
+        </button>
+        <button id="deleteVersionBtn" class="btn btn-danger btn-sm" onclick="deleteVersion()" style="display: none;" data-i18n="btn_delete_version">
+          حذف النسخة
+        </button>
+      </div>
+      <div id="langNotice" class="form-hint lang-notice" style="display: none;"></div>
+      <small class="form-hint" data-i18n="update_hint">«تحديث الفيديو» يعمل نسخة جديدة بالترجمة المعدلة وبطاقات الأسماء وهوية العلامة، ويحتفظ بالنسخة القديمة.</small>
+    </div>
+
+    <!-- Download Suite (the captions timed for the chosen version) -->
+    <div class="download-bar">
+      <a id="srtArLink" href="/files/{{ sid }}/captions_ar.srt" download class="btn btn-secondary btn-sm" data-i18n="btn_download_srt_ar">
+        SRT عربي
+      </a>
+      <a id="srtEnLink" href="/files/{{ sid }}/captions_en.srt" download class="btn btn-secondary btn-sm" data-i18n="btn_download_srt_en">
+        SRT إنجليزي
+      </a>
+      <a id="vttLink" href="/files/{{ sid }}/captions.vtt" download class="btn btn-secondary btn-sm" data-i18n="btn_download_vtt">
+        VTT
+      </a>
+      <a href="/api/sessions/{{ sid }}/transcript.txt" download class="btn btn-secondary btn-sm" data-i18n="btn_download_transcript">
+        تفريغ نصي TXT
+      </a>
+    </div>
+
+    <!-- Search inside the video -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.05rem; color: var(--text-bright); margin-bottom: 10px;" data-i18n="search_title">ابحث داخل الفيديو</h3>
+      <form id="searchForm" class="search-form">
+        <input type="text" id="searchInput" class="form-control" dir="auto" autocomplete="off" data-i18n-ph="search_ph" placeholder="كلمة أو جملة... مثلاً: الذكاء الاصطناعي">
+        <button type="submit" class="btn btn-primary btn-sm" data-i18n="btn_search_words">بحث بالكلمات</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="searchVideo('meaning')" data-i18n="btn_search_meaning">بحث بالمعنى</button>
+      </form>
+      <div id="searchResults" class="search-results"></div>
+    </div>
+
+    <!-- Timeline Chart & Visual Strips -->
+    <div class="card timeline-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="font-size: 1.05rem; color: var(--text-bright);" data-i18n="timeline_title">
+          المخطط الزمني لنقاط الكاميرات (Timeline Scores)
+        </h3>
+        <small style="color: var(--text-quiet); font-size: 0.78rem;" data-i18n="timeline_hint">
+          اضغط على أي نقطة للقفز في الفيديو
+        </small>
+      </div>
+
+      <div class="chart-wrapper">
+        <canvas id="timelineChart"></canvas>
+      </div>
+
+      <!-- On-Air Cut Strip -->
+      <div class="strip-container">
+        <div class="strip-label">
+          <span data-i18n="on_air_title">شريط الكاميرا المباشرة (On-Air Cuts)</span>
+          <div style="display: flex; gap: 8px; font-size: 0.74rem;">
+            <span><span style="color: var(--cam1-color);">■</span> Cam 1 (Wide)</span>
+            <span><span style="color: var(--cam2-color);">■</span> Cam 2 (Host)</span>
+            <span><span style="color: var(--cam3-color);">■</span> Cam 3 (Guest)</span>
+            <span id="splitLegend" style="display: none;"><span style="color: #f6ad55;">▦</span> Split Screen</span>
+          </div>
+        </div>
+        <div id="onAirStrip" class="on-air-strip"></div>
+        <div id="whyBox" class="why-box" data-i18n="why_hint">مرّر الماوس أو اضغط على أي لقطة في الشريط لترى لماذا اختارها المخرج.</div>
+      </div>
+
+      <!-- Director Mode Strip -->
+      <div class="strip-container" style="margin-top: 10px;">
+        <div class="strip-label">
+          <span data-i18n="mode_strip_title">أنماط الإخراج (Conversation / Reaction / Demo)</span>
+          <div style="display: flex; gap: 8px; font-size: 0.74rem;">
+            <span style="color: #3b82f6;">● Conversation</span>
+            <span style="color: #10b981;">● Reaction</span>
+            <span style="color: #f59e0b;">● Demo</span>
+            <span style="color: #a855f7;">● Wide energy</span>
+          </div>
+        </div>
+        <div id="modeStrip" class="mode-strip"></div>
+      </div>
+    </div>
+
+    <!-- Speakers Section -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h3 style="font-size: 1.05rem; color: var(--text-bright);" data-i18n="speakers_title">
+          المتحدثون والشخصيات
+        </h3>
+        <button onclick="saveSpeakerNames()" class="btn btn-secondary btn-sm" id="saveSpeakersBtn" data-i18n="btn_save_names">
+          حفظ الأسماء
+        </button>
+      </div>
+      <p class="form-hint" style="margin-bottom: 14px;" data-i18n="speakers_hint">الأسماء التي تكتبها هنا تظهر كبطاقة اسم في الفيديو بعد «تحديث الفيديو». اترك الاسم فارغاً لإلغاء البطاقة.</p>
+      <div id="speakersContainer" class="speakers-grid"></div>
+    </div>
+
+    <!-- Speaker stats -->
+    <div id="statsCard" class="card" style="margin-bottom: 24px; display: none;">
+      <h3 style="font-size: 1.05rem; color: var(--text-bright); margin-bottom: 6px;" data-i18n="stats_title">إحصائيات المتحدثين</h3>
+      <p id="statsSummary" class="form-hint" style="margin-bottom: 14px;"></p>
+      <div id="statsPeople" class="stats-people"></div>
+      <div id="statsLaughs" class="stats-laughs"></div>
+    </div>
+
+    <!-- Highlights Gallery -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.05rem; color: var(--text-bright);" data-i18n="highlights_title">
+        معرض الهايلايتس واللقطات المميزة (Highlights &amp; Shorts)
+      </h3>
+      <div id="highlightsContainer" class="highlights-grid"></div>
+    </div>
+
+    <!-- Trailer -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <h3 style="font-size: 1.05rem; color: var(--text-bright);" data-i18n="trailer_title">التريلر</h3>
+        <button id="makeTrailerBtn" class="btn btn-primary btn-sm" onclick="makeTrailer()" data-i18n="btn_make_trailer">إنشاء التريلر</button>
+      </div>
+      <p class="form-hint" style="margin: 6px 0 14px;" data-i18n="trailer_hint">إعلان قصير (30–45 ثانية) من أقوى لحظات الحلقة، بصيغتين: يوتيوب وريلز.</p>
+      <div id="trailerBox"></div>
+    </div>
+
+    <!-- Thumbnails -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <h3 style="font-size: 1.05rem; color: var(--text-bright);" data-i18n="thumbs_title">صور مصغرة (Thumbnails)</h3>
+        <button id="makeThumbsBtn" class="btn btn-primary btn-sm" onclick="makeThumbnails()" data-i18n="btn_make_thumbs">إنشاء الصور المصغرة</button>
+      </div>
+      <p class="form-hint" style="margin: 6px 0 14px;" data-i18n="thumbs_hint">أفضل لقطة لوجه المتحدث في كل هايلايت مع عنوانه، بمقاس يوتيوب 1280×720.</p>
+      <div id="thumbsBox" class="thumbs-grid"></div>
+    </div>
+
+    <!-- Agent clips (with what each one was made from) -->
+    <div id="clipsCard" class="card" style="margin-bottom: 24px; display: none;">
+      <h3 style="font-size: 1.05rem; color: var(--text-bright); margin-bottom: 12px;" data-i18n="clips_title">كليبات المحرر الذكي</h3>
+      <div id="clipsList" class="clips-list"></div>
+    </div>
+
+    <!-- Publish kit: chapters, summary, social posts -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <h3 style="font-size: 1.05rem; color: var(--text-bright);" data-i18n="publish_title">حزمة النشر</h3>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm lang-tab" data-lang="ar" onclick="showPublish('ar')">العربية</button>
+          <button class="btn btn-secondary btn-sm lang-tab" data-lang="en" onclick="showPublish('en')">English</button>
+          <button id="makePublishBtn" class="btn btn-primary btn-sm" onclick="makePublish()" data-i18n="btn_make_publish">إنشاء حزمة النشر</button>
+        </div>
+      </div>
+      <p class="form-hint" style="margin: 6px 0 14px;" data-i18n="publish_hint">فصول يوتيوب، ملخص الحلقة، وبوست لكل هايلايت — انسخها والصقها عند النشر.</p>
+      <div id="publishBox"></div>
+    </div>
+
+    <!-- Brand kit -->
+    <div class="card" style="margin-bottom: 24px;">
+      <h3 style="font-size: 1.05rem; color: var(--text-bright); margin-bottom: 6px;" data-i18n="brand_title">هوية العلامة التجارية</h3>
+      <p class="form-hint" style="margin-bottom: 14px;" data-i18n="brand_hint">شعارك على الفيديو والكليبات، مقدمة وخاتمة للفيديو الكامل، وألوان الترجمة. تظهر بعد «تحديث الفيديو».</p>
+      {% include "brand_form.html" %}
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+        <button id="saveBrandBtn" class="btn btn-primary btn-sm" onclick="saveBrand()" data-i18n="btn_save_brand">حفظ الهوية</button>
+      </div>
+    </div>
+
+    <!-- Metrics Card (Team View) -->
+    <div id="metricsCard" class="card" style="display: none; margin-bottom: 24px;">
+      <h3 style="font-size: 1.05rem; color: var(--text-bright);" data-i18n="metrics_title">
+        مقاييس الجودة والتقييم (Team Metrics)
+      </h3>
+      <div id="metricsGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;"></div>
+    </div>
+  </div>
+
+  <!-- Right Column: Editor Agent Chat Panel -->
+  <div>
+    <div class="chat-panel">
+      <div class="chat-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2rem;">🤖</span>
+          <div>
+            <div style="font-weight: 700; color: var(--text-bright);" data-i18n="agent_title">المحرر الذكي (Editor Agent)</div>
+            <div style="font-size: 0.76rem; color: var(--text-quiet);" id="agentStatusSubtitle" data-i18n="agent_status_ready">
+              جاهز لتنفيذ طلبات المونتاج
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <!-- Rendered dynamically by results.js -->
+      </div>
+
+      <div class="chat-footer">
+        <div class="chat-chips-row">
+          <button class="chat-chip" onclick="useChip(this.textContent)" data-i18n="agent_chip_1">اعمل ريل دقيقة على الضيف</button>
+          <button class="chat-chip" onclick="useChip(this.textContent)" data-i18n="agent_chip_2">اعمل كليب دقيقة بترجمة إنجليزي</button>
+          <button class="chat-chip" onclick="useChip(this.textContent)" data-i18n="agent_chip_3">أفضل لحظة حوارية</button>
+        </div>
+
+        <form id="chatForm" class="chat-form">
+          <input type="text" id="chatInput" class="chat-input" data-i18n-ph="agent_input_ph" placeholder="اطلب أي كليب... مثلاً: اعمل ريل دقيقة عن الذكاء الاصطناعي" autocomplete="off">
+          <button type="submit" id="chatSendBtn" class="btn btn-primary btn-sm" data-i18n="btn_send">
+            إرسال
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/brand.js?v={{ static_version }}"></script>
+<script src="/static/results.js?v={{ static_version }}"></script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{# The brand kit form: the same fields on the upload page and the results page (static/brand.js reads and fills it) #}
+<div class="brand-grid">
+  <div class="form-group">
+    <label class="form-label" for="brandLogo" data-i18n="brand_logo">الشعار (PNG / JPG)</label>
+    <input type="file" id="brandLogo" class="form-control" accept="image/png,image/jpeg">
+    <small class="form-hint" id="brandLogoNow"></small>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandCorner" data-i18n="brand_corner">مكان الشعار</label>
+    <select id="brandCorner" class="form-control">
+      <option value="top-right" data-i18n="corner_top_right">أعلى اليمين</option>
+      <option value="top-left" data-i18n="corner_top_left">أعلى اليسار</option>
+      <option value="bottom-right" data-i18n="corner_bottom_right">أسفل اليمين</option>
+      <option value="bottom-left" data-i18n="corner_bottom_left">أسفل اليسار</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandLogoSize" data-i18n="brand_logo_size">حجم الشعار</label>
+    <select id="brandLogoSize" class="form-control">
+      <option value="0.08" data-i18n="size_small">صغير</option>
+      <option value="0.12" selected data-i18n="size_medium">متوسط</option>
+      <option value="0.18" data-i18n="size_large">كبير</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandIntro" data-i18n="brand_intro">مقدمة (فيديو حتى 60 ثانية)</label>
+    <input type="file" id="brandIntro" class="form-control" accept="video/*">
+    <small class="form-hint" id="brandIntroNow"></small>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandOutro" data-i18n="brand_outro">خاتمة (فيديو حتى 60 ثانية)</label>
+    <input type="file" id="brandOutro" class="form-control" accept="video/*">
+    <small class="form-hint" id="brandOutroNow"></small>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandCapSize" data-i18n="brand_caption_size">حجم الترجمة</label>
+    <select id="brandCapSize" class="form-control">
+      <option value="small" data-i18n="size_small">صغير</option>
+      <option value="medium" selected data-i18n="size_medium">متوسط</option>
+      <option value="large" data-i18n="size_large">كبير</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandTextColor" data-i18n="brand_text_color">لون نص الترجمة</label>
+    <input type="color" id="brandTextColor" class="form-control color-input" value="#ffffff">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandBoxColor" data-i18n="brand_box_color">لون خلفية الترجمة</label>
+    <input type="color" id="brandBoxColor" class="form-control color-input" value="#000000">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandWordColor" data-i18n="brand_word_color">لون الكلمة المنطوقة</label>
+    <input type="color" id="brandWordColor" class="form-control color-input" value="#ffd43b">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandBoxStyle" data-i18n="brand_box_style">شكل الترجمة</label>
+    <select id="brandBoxStyle" class="form-control">
+      <option value="box" data-i18n="style_box">صندوق خلف النص</option>
+      <option value="outline" data-i18n="style_outline">حدود حول الحروف</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="brandMusic" data-i18n="brand_music">موسيقى التريلر (MP3 / M4A / WAV)</label>
+    <input type="file" id="brandMusic" class="form-control" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg">
+    <small class="form-hint" id="brandMusicNow"></small>
+  </div>
+  <div class="form-group brand-check">
+    <label><input type="checkbox" id="brandCleanVoice"> <span data-i18n="brand_clean_voice">صوت أنقى</span></label>
+    <small class="form-hint" data-i18n="brand_clean_voice_hint">يقلل الضوضاء ويوضح الأصوات في كل الفيديوهات.</small>
+  </div>
+</div>

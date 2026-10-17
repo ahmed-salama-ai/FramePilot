@@ -1,0 +1,10 @@
+{
+  "name": "Mock podcast",
+  "language": "ar",
+  "wide_cam": 1,
+  "num_speakers": 2,
+  "speaker_names": {
+    "SPEAKER_00": "Host",
+    "SPEAKER_01": "Guest"
+  }
+}

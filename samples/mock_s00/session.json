@@ -1,0 +1,29 @@
+{
+  "id": "s00",
+  "fps": 30,
+  "duration": 60.0,
+  "language": "ar",
+  "reference_cam": 1,
+  "cameras": [
+    {
+      "id": 1,
+      "role": "wide",
+      "offset": 0.0
+    },
+    {
+      "id": 2,
+      "role": "closeup",
+      "offset": 1.84
+    },
+    {
+      "id": 3,
+      "role": "closeup",
+      "offset": -0.52
+    }
+  ],
+  "num_speakers": 2,
+  "speaker_names": {
+    "SPEAKER_00": "Host",
+    "SPEAKER_01": "Guest"
+  }
+}

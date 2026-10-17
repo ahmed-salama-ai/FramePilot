@@ -1,0 +1,143 @@
+fps: 30
+step: 0.1
+
+ingest:
+  sample_rate: 16000
+  sync_seconds: 60
+  render_height: 1080
+
+video:
+  encoder: auto
+  quality:
+    program: 26
+    clips: 21
+    cameras: 22
+  loudness: -14
+
+captions:
+  word_by_word:
+    clips: true
+    program: false
+
+voice:
+  clean: "highpass=f=80,afftdn=nr=12:nf=-25:tn=1,equalizer=f=3000:t=q:w=1.2:g=3,acompressor=threshold=-24dB:ratio=2.5:attack=15:release=250,atrim=start=0.025,asetpts=PTS-STARTPTS,apad=pad_dur=0.025"
+
+pauses:
+  cut: false
+  min_pause: 1.5
+  keep: 0.4
+  jump_cuts: false
+
+zoom:
+  enabled: true
+  scale: 1.12
+  seconds: 4.0
+  laugh: 0.25
+  loud: 1.5
+  per_minute: 2
+  min_gap: 20
+  min_shot: 3.0
+
+cold_open:
+  enabled: false
+  seconds: [6, 12]
+
+trailer:
+  seconds: [30, 45]
+  moments: [4, 6]
+  piece: [3, 12]
+  fade: 0.25
+  end_card: 3.0
+  music_volume: 0.2
+
+perception:
+  workers: 3
+  face_roles: [closeup]
+
+scorer:
+  weights: {speaker: 3.0, frontal: 1.0, quality: 0.8, gesture: 0.5, shake: 1.0}
+  face_full: 0.15
+  no_face_size: 0.33
+
+switcher:
+  min_shot: 2.0
+  margin: 0.2
+  hold: 0.4
+  max_shot: 15.0
+  low_score: 0.3
+
+split:
+  enabled: true
+  order: [3, 2]
+  turn_max: 5.0
+  min_turns: 3
+  min_seconds: 4.0
+  max_gap: 2.0
+  mouth_check: true
+  laugh: 0.25
+  react_pad: 1.0
+  join_gap: 3.0
+  line: 4
+
+audio:
+  asr_model: gemini-3.5-transcribe
+  language_codes: {ar: [ar-EG], en: [en-US]}
+  chunk_seconds: 0
+  cut_search_seconds: 10
+  segment_max_seconds: 5
+  segment_max_chars: 42
+  voice_model: microsoft/wavlm-base-plus-sv
+  same_voice: 0.75
+  merge_voice: 0.95
+  speaker_model: gemini-3.1-flash-lite
+  english_words_model: gemini-3.5-flash
+  english_words_fallback: gemini-3.1-flash-lite
+  english_words_window: 60
+  translate_model: gemini-3.1-flash-lite
+  api_key_prefix: GEMINI_API_KEY
+
+ollama:
+  text_model: qwen3:8b
+  vision_model: qwen3-vl:4b-instruct
+  embed_model: bge-m3
+
+brain:
+  every_seconds: 5
+  text_window: 10
+  english_text: false
+  tile: [640, 360]
+  laugh: 0.25
+  laugh_agree: 0.1
+
+agent:
+  max_steps: 6
+  max_clips: 3
+  clip_seconds: [5, 180]
+  temperature: 0.0
+  num_ctx: 8192
+  keep_alive: 2m
+  timeout: 120
+  window_seconds: 30
+  window_step: 10
+  topic_drop: 0.03
+  topic_max: 90
+  focus_share: {only: 100, mostly: 75, more: 60}
+  boosts: [1.2, 1.4, 1.6, 1.8, 2.0, 2.5, 3.0]
+
+eval:
+  short_cut: 1.0
+  random_seeds: 10
+
+highlights:
+  weights: {loud: 1.0, laugh: 2.0, energy: 1.5, highlight: 1.0, changes: 0.3}
+  smooth_seconds: 5
+  peak_distance: 30
+  peak_percentile: 85
+  candidates: 8
+  before: 15
+  after: 20
+  min_length: 20
+  max_length: 45
+  min_picks: 3
+  max_picks: 5
+  title_model: gemini-3.1-flash-lite

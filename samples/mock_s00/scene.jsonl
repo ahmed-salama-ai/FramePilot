@@ -1,0 +1,12 @@
+{"t": 0.0, "scene": "host introduces the episode", "event": "talking", "energy": 0.3, "mode": "conversation", "raw_mode": "conversation", "highlight": false}
+{"t": 5.0, "scene": "host talks about the topic", "event": "talking", "energy": 0.3, "mode": "conversation", "raw_mode": "conversation", "highlight": false}
+{"t": 10.0, "scene": "host hands over to the guest", "event": "talking", "energy": 0.4, "mode": "conversation", "raw_mode": "conversation", "highlight": false}
+{"t": 15.0, "scene": "guest gives CV advice", "event": "talking", "energy": 0.4, "mode": "conversation", "raw_mode": "conversation", "highlight": false}
+{"t": 20.0, "scene": "guest gives CV advice", "event": "talking", "energy": 0.4, "mode": "conversation", "raw_mode": "conversation", "highlight": false}
+{"t": 25.0, "scene": "guest talks about real projects", "event": "talking", "energy": 0.5, "mode": "conversation", "raw_mode": "conversation", "highlight": true}
+{"t": 30.0, "scene": "host asks about salaries", "event": "talking", "energy": 0.6, "mode": "conversation", "raw_mode": "conversation", "highlight": true}
+{"t": 35.0, "scene": "everyone is laughing", "event": "laughter", "energy": 0.9, "mode": "reaction", "raw_mode": "reaction", "highlight": true}
+{"t": 40.0, "scene": "guest answers, still smiling", "event": "talking", "energy": 0.6, "mode": "reaction", "raw_mode": "conversation", "highlight": true}
+{"t": 45.0, "scene": "guest explains learning first", "event": "talking", "energy": 0.5, "mode": "conversation", "raw_mode": "conversation", "highlight": false}
+{"t": 50.0, "scene": "guest finishes the answer", "event": "talking", "energy": 0.4, "mode": "conversation", "raw_mode": "conversation", "highlight": false}
+{"t": 55.0, "scene": "host thanks the guest", "event": "talking", "energy": 0.3, "mode": "conversation", "raw_mode": "conversation", "highlight": false}

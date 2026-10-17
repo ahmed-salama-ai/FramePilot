@@ -1,0 +1,25 @@
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.14.1+cu130
+torchvision==0.29.1+cu130
+numpy
+pandas
+pyarrow
+scipy
+soundfile
+pyyaml
+pydantic
+tqdm
+opencv-python
+ultralytics
+mediapipe
+google-genai
+transformers
+silero-vad
+panns-inference
+ollama
+fastapi
+uvicorn
+jinja2
+python-multipart
+httpx
+pytest

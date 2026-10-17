@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}FramePilot — The AI Director{% endblock %}</title>
+  <link rel="icon" type="image/jpeg" href="/static/logo.jpeg">
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
+  <script src="/static/i18n.js?v={{ static_version }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-container">
+      <nav class="nav-wrapper">
+        <a href="/" class="brand-link">
+          <img src="/static/logo.jpeg" alt="FramePilot Logo" class="brand-logo">
+          <div class="brand-info">
+            <h1 data-i18n="brand_name">فريم بايلوت</h1>
+            <div class="brand-badge">THE AI DIRECTOR</div>
+          </div>
+        </a>
+
+        <ul class="nav-menu">
+          <li class="nav-item">
+            <a href="/" data-i18n="nav_projects">المشاريع</a>
+          </li>
+          <li class="nav-item">
+            <a href="/new" data-i18n="nav_new">مشروع جديد</a>
+          </li>
+        </ul>
+
+        <div class="nav-actions">
+          <button id="langToggleBtn" class="btn-lang" title="Switch Language">
+            🌐 <span id="langText">English</span>
+          </button>
+          <a href="/new" class="btn btn-primary btn-sm" data-i18n="btn_new_project">+ مشروع جديد</a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main class="app-container" style="flex: 1; padding-top: 24px; padding-bottom: 48px;">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer style="border-top: 1px solid var(--border-color); padding: 24px 0; text-align: center; color: var(--text-quiet); font-size: 0.85rem;">
+    <div class="app-container">
+      <p>FramePilot the AI Director &copy; 2026</p>
+      <p style="margin-top: 4px; font-size: 0.78rem;">Autonomous multi-camera editing powered by Gemini &amp; Deep Learning</p>
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,27 @@
+[
+  {
+    "start": 1.0,
+    "end": 11.8,
+    "speaker": "SPEAKER_00"
+  },
+  {
+    "start": 12.5,
+    "end": 27.0,
+    "speaker": "SPEAKER_01"
+  },
+  {
+    "start": 27.5,
+    "end": 33.0,
+    "speaker": "SPEAKER_00"
+  },
+  {
+    "start": 38.0,
+    "end": 52.0,
+    "speaker": "SPEAKER_01"
+  },
+  {
+    "start": 52.5,
+    "end": 59.5,
+    "speaker": "SPEAKER_00"
+  }
+]

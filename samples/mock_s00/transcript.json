@@ -1,0 +1,457 @@
+[
+  {
+    "id": 0,
+    "start": 1.0,
+    "end": 5.5,
+    "speaker": "SPEAKER_00",
+    "text": "أهلاً بيكم في حلقة جديدة من البودكاست",
+    "translation": "Welcome to a new episode of the podcast",
+    "words": [
+      {
+        "w": "أهلاً",
+        "start": 1.0,
+        "end": 1.64
+      },
+      {
+        "w": "بيكم",
+        "start": 1.64,
+        "end": 2.29
+      },
+      {
+        "w": "في",
+        "start": 2.29,
+        "end": 2.93
+      },
+      {
+        "w": "حلقة",
+        "start": 2.93,
+        "end": 3.57
+      },
+      {
+        "w": "جديدة",
+        "start": 3.57,
+        "end": 4.21
+      },
+      {
+        "w": "من",
+        "start": 4.21,
+        "end": 4.86
+      },
+      {
+        "w": "البودكاست",
+        "start": 4.86,
+        "end": 5.5
+      }
+    ]
+  },
+  {
+    "id": 1,
+    "start": 5.8,
+    "end": 11.8,
+    "speaker": "SPEAKER_00",
+    "text": "النهارده هنتكلم عن أول شغلانة والمرتبات",
+    "translation": "Today we talk about the first job and salaries",
+    "words": [
+      {
+        "w": "النهارده",
+        "start": 5.8,
+        "end": 6.8
+      },
+      {
+        "w": "هنتكلم",
+        "start": 6.8,
+        "end": 7.8
+      },
+      {
+        "w": "عن",
+        "start": 7.8,
+        "end": 8.8
+      },
+      {
+        "w": "أول",
+        "start": 8.8,
+        "end": 9.8
+      },
+      {
+        "w": "شغلانة",
+        "start": 9.8,
+        "end": 10.8
+      },
+      {
+        "w": "والمرتبات",
+        "start": 10.8,
+        "end": 11.8
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "start": 12.5,
+    "end": 17.5,
+    "speaker": "SPEAKER_01",
+    "text": "أول حاجة السي في لازم يبقى صفحة واحدة بس",
+    "translation": "First, your CV should be one page only",
+    "words": [
+      {
+        "w": "أول",
+        "start": 12.5,
+        "end": 13.06
+      },
+      {
+        "w": "حاجة",
+        "start": 13.06,
+        "end": 13.61
+      },
+      {
+        "w": "السي",
+        "start": 13.61,
+        "end": 14.17
+      },
+      {
+        "w": "في",
+        "start": 14.17,
+        "end": 14.72
+      },
+      {
+        "w": "لازم",
+        "start": 14.72,
+        "end": 15.28
+      },
+      {
+        "w": "يبقى",
+        "start": 15.28,
+        "end": 15.83
+      },
+      {
+        "w": "صفحة",
+        "start": 15.83,
+        "end": 16.39
+      },
+      {
+        "w": "واحدة",
+        "start": 16.39,
+        "end": 16.94
+      },
+      {
+        "w": "بس",
+        "start": 16.94,
+        "end": 17.5
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "start": 17.8,
+    "end": 22.4,
+    "speaker": "SPEAKER_01",
+    "text": "وركز على المشاريع اللي عملتها بإيدك",
+    "translation": "And focus on the projects you built yourself",
+    "words": [
+      {
+        "w": "وركز",
+        "start": 17.8,
+        "end": 18.57
+      },
+      {
+        "w": "على",
+        "start": 18.57,
+        "end": 19.33
+      },
+      {
+        "w": "المشاريع",
+        "start": 19.33,
+        "end": 20.1
+      },
+      {
+        "w": "اللي",
+        "start": 20.1,
+        "end": 20.87
+      },
+      {
+        "w": "عملتها",
+        "start": 20.87,
+        "end": 21.63
+      },
+      {
+        "w": "بإيدك",
+        "start": 21.63,
+        "end": 22.4
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "start": 22.6,
+    "end": 27.0,
+    "speaker": "SPEAKER_01",
+    "text": "الشركات بتحب تشوف شغل حقيقي",
+    "translation": "Companies like to see real work",
+    "words": [
+      {
+        "w": "الشركات",
+        "start": 22.6,
+        "end": 23.48
+      },
+      {
+        "w": "بتحب",
+        "start": 23.48,
+        "end": 24.36
+      },
+      {
+        "w": "تشوف",
+        "start": 24.36,
+        "end": 25.24
+      },
+      {
+        "w": "شغل",
+        "start": 25.24,
+        "end": 26.12
+      },
+      {
+        "w": "حقيقي",
+        "start": 26.12,
+        "end": 27.0
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "start": 27.5,
+    "end": 33.0,
+    "speaker": "SPEAKER_00",
+    "text": "طب والمرتبات؟ الناس دايماً بتسأل عن المرتب",
+    "translation": "And salaries? People always ask about the salary",
+    "words": [
+      {
+        "w": "طب",
+        "start": 27.5,
+        "end": 28.29
+      },
+      {
+        "w": "والمرتبات؟",
+        "start": 28.29,
+        "end": 29.07
+      },
+      {
+        "w": "الناس",
+        "start": 29.07,
+        "end": 29.86
+      },
+      {
+        "w": "دايماً",
+        "start": 29.86,
+        "end": 30.64
+      },
+      {
+        "w": "بتسأل",
+        "start": 30.64,
+        "end": 31.43
+      },
+      {
+        "w": "عن",
+        "start": 31.43,
+        "end": 32.21
+      },
+      {
+        "w": "المرتب",
+        "start": 32.21,
+        "end": 33.0
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "start": 38.0,
+    "end": 43.5,
+    "speaker": "SPEAKER_01",
+    "text": "بصراحة المرتب في أول سنة مش أهم حاجة",
+    "translation": "Honestly, the first-year salary is not the most important thing",
+    "words": [
+      {
+        "w": "بصراحة",
+        "start": 38.0,
+        "end": 38.69
+      },
+      {
+        "w": "المرتب",
+        "start": 38.69,
+        "end": 39.38
+      },
+      {
+        "w": "في",
+        "start": 39.38,
+        "end": 40.06
+      },
+      {
+        "w": "أول",
+        "start": 40.06,
+        "end": 40.75
+      },
+      {
+        "w": "سنة",
+        "start": 40.75,
+        "end": 41.44
+      },
+      {
+        "w": "مش",
+        "start": 41.44,
+        "end": 42.12
+      },
+      {
+        "w": "أهم",
+        "start": 42.12,
+        "end": 42.81
+      },
+      {
+        "w": "حاجة",
+        "start": 42.81,
+        "end": 43.5
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "start": 43.8,
+    "end": 48.0,
+    "speaker": "SPEAKER_01",
+    "text": "الأهم إنك تتعلم من ناس شاطرة",
+    "translation": "What matters is learning from skilled people",
+    "words": [
+      {
+        "w": "الأهم",
+        "start": 43.8,
+        "end": 44.5
+      },
+      {
+        "w": "إنك",
+        "start": 44.5,
+        "end": 45.2
+      },
+      {
+        "w": "تتعلم",
+        "start": 45.2,
+        "end": 45.9
+      },
+      {
+        "w": "من",
+        "start": 45.9,
+        "end": 46.6
+      },
+      {
+        "w": "ناس",
+        "start": 46.6,
+        "end": 47.3
+      },
+      {
+        "w": "شاطرة",
+        "start": 47.3,
+        "end": 48.0
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "start": 48.2,
+    "end": 52.0,
+    "speaker": "SPEAKER_01",
+    "text": "وبعد سنتين المرتب هيفرق معاك جداً",
+    "translation": "After two years the salary changes a lot",
+    "words": [
+      {
+        "w": "وبعد",
+        "start": 48.2,
+        "end": 48.83
+      },
+      {
+        "w": "سنتين",
+        "start": 48.83,
+        "end": 49.47
+      },
+      {
+        "w": "المرتب",
+        "start": 49.47,
+        "end": 50.1
+      },
+      {
+        "w": "هيفرق",
+        "start": 50.1,
+        "end": 50.73
+      },
+      {
+        "w": "معاك",
+        "start": 50.73,
+        "end": 51.37
+      },
+      {
+        "w": "جداً",
+        "start": 51.37,
+        "end": 52.0
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "start": 52.5,
+    "end": 56.0,
+    "speaker": "SPEAKER_00",
+    "text": "كلام جميل جداً، شكراً ليك",
+    "translation": "Great words, thank you",
+    "words": [
+      {
+        "w": "كلام",
+        "start": 52.5,
+        "end": 53.2
+      },
+      {
+        "w": "جميل",
+        "start": 53.2,
+        "end": 53.9
+      },
+      {
+        "w": "جداً،",
+        "start": 53.9,
+        "end": 54.6
+      },
+      {
+        "w": "شكراً",
+        "start": 54.6,
+        "end": 55.3
+      },
+      {
+        "w": "ليك",
+        "start": 55.3,
+        "end": 56.0
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "start": 56.3,
+    "end": 59.5,
+    "speaker": "SPEAKER_00",
+    "text": "ونشوفكم في الحلقة الجاية",
+    "translation": "See you in the next episode",
+    "words": [
+      {
+        "w": "ونشوفكم",
+        "start": 56.3,
+        "end": 57.1
+      },
+      {
+        "w": "في",
+        "start": 57.1,
+        "end": 57.9
+      },
+      {
+        "w": "الحلقة",
+        "start": 57.9,
+        "end": 58.7
+      },
+      {
+        "w": "الجاية",
+        "start": 58.7,
+        "end": 59.5
+      }
+    ]
+  }
+]

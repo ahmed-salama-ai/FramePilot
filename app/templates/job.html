@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}FramePilot — Processing Job #{{ job.id }}{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <span class="section-label" data-i18n="job_processing_title">معالجة الفيديو</span>
+    <h2 class="page-title" id="projectTitle" dir="auto">
+      {{ project.name if project else 'جاري الإخراج الذكي...' }}
+    </h2>
+    <p class="page-subtitle">
+      Session: <bdi id="sessionId">{{ job.session_id }}</bdi> &middot; Job ID: <bdi>#{{ job.id }}</bdi>
+    </p>
+  </div>
+</div>
+
+<!-- Queue notification banner if waiting -->
+<div id="queueNotice" style="display: {% if job.queue_position and job.queue_position > 0 %}block{% else %}none{% endif %}; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.3); color: #facc15; padding: 14px 20px; border-radius: var(--radius-md); margin-bottom: 24px;">
+  ⏳ <span id="queueNoticeText">في قائمة الانتظار: يوجد {{ job.queue_position | default(1) }} فيديو قيد المعالجة قبلك</span>
+</div>
+
+<!-- Main Progress Card -->
+<div class="card" style="margin-bottom: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+    <div>
+      <span style="font-weight: 700; color: var(--text-bright); font-size: 1.1rem;" id="currentStageText">{{ job.stage }}</span>
+      <span style="color: var(--text-quiet); margin-inline-start: 10px; font-size: 0.9rem;" id="timeMetrics">
+        <span data-i18n="job_time_elapsed">الوقت المنقضي:</span> <bdi id="elapsedTimer">00:00</bdi>
+      </span>
+      <div id="etaText" style="color: var(--accent-orange); font-size: 0.9rem; margin-top: 4px;"></div>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 700; color: var(--accent-orange);" id="progressPercent">
+      <bdi>{{ job.progress }}%</bdi>
+    </div>
+  </div>
+
+  <div class="progress-container" style="height: 14px;">
+    <div id="mainProgressBar" class="progress-bar-fill" style="width: {{ job.progress | default(0) }}%;"></div>
+  </div>
+  <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+    <button id="notifyBtn" class="btn btn-secondary btn-sm" onclick="toggleNotify()">🔔</button>
+  </div>
+</div>
+
+<!-- Error Box (shown on failure) -->
+<div id="errorCard" class="card" style="display: {% if job.status == 'error' %}block{% else %}none{% endif %}; border-color: rgba(237, 62, 82, 0.5); background: rgba(237, 62, 82, 0.05); margin-bottom: 24px;">
+  <div style="display: flex; align-items: center; gap: 10px; color: #ff6b7d; font-weight: 700; margin-bottom: 8px;">
+    <span>⚠</span>
+    <span data-i18n="job_err_box_title">تعثرت المعالجة في هذه المرحلة</span>
+  </div>
+  <p id="errorMsgText" style="color: var(--text-main); font-size: 0.95rem; margin-bottom: 16px;">
+    {{ job.error if job.error else 'حدث خطأ أثناء تشغيل خط أنابيب المعالجة.' }}
+  </p>
+
+  <div style="display: flex; gap: 12px; align-items: center;">
+    <button onclick="retryJob()" class="btn btn-primary btn-sm" id="retryBtn" data-i18n="btn_try_again">
+      🔄 إعادة المحاولة
+    </button>
+    <button onclick="toggleDetails()" class="btn btn-secondary btn-sm" data-i18n="btn_show_details">
+      📄 تفاصيل السجل
+    </button>
+  </div>
+
+  <pre id="logDetails" style="display: none; margin-top: 16px; padding: 14px; background: #000000; border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 0.8rem; color: #ff9999; max-height: 240px; overflow-y: auto; white-space: pre-wrap;">{{ job.error if job.error else '' }}</pre>
+</div>
+
+<!-- 8 Stages List -->
+<div class="card">
+  {% if job.kind == 'finish' %}
+  <h3 style="font-size: 1.1rem; color: var(--text-bright); margin-bottom: 16px;" data-i18n="job_kind_finish">تحديث الفيديو</h3>
+  {% elif job.kind == 'publish' %}
+  <h3 style="font-size: 1.1rem; color: var(--text-bright); margin-bottom: 16px;" data-i18n="job_kind_publish">حزمة النشر</h3>
+  {% elif job.kind == 'language' %}
+  <h3 style="font-size: 1.1rem; color: var(--text-bright); margin-bottom: 16px;" data-i18n="job_kind_language">فيديو بترجمة لغة واحدة</h3>
+  {% elif job.kind == 'thumbnails' %}
+  <h3 style="font-size: 1.1rem; color: var(--text-bright); margin-bottom: 16px;" data-i18n="job_kind_thumbnails">الصور المصغرة</h3>
+  {% elif job.kind == 'trailer' %}
+  <h3 style="font-size: 1.1rem; color: var(--text-bright); margin-bottom: 16px;" data-i18n="job_kind_trailer">التريلر</h3>
+  {% else %}
+  <h3 style="font-size: 1.1rem; color: var(--text-bright); margin-bottom: 16px;" data-i18n="job_stages_title">
+    مراحل الإنتاج الذكي (8 مراحل)
+  </h3>
+  {% endif %}
+
+  <div class="stage-tracker" id="stagesContainer">
+    <!-- Rendered by JS -->
+  </div>
+</div>
+
+<!-- Job Metadata for JS -->
+<div id="jobMeta" data-job-id="{{ job.id }}" data-session-id="{{ job.session_id }}" style="display: none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/job.js?v={{ static_version }}"></script>
+{% endblock %}

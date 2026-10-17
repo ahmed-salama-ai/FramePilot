@@ -1,0 +1,36 @@
+{
+  "mock": true,
+  "director": {
+    "ai": {
+      "agreement": 0.857,
+      "speaker_coverage": 0.86,
+      "short_cuts": 0,
+      "avg_shot": 8.57
+    },
+    "random": {
+      "agreement": 0.34,
+      "speaker_coverage": 0.35,
+      "short_cuts": 0,
+      "avg_shot": 5.0
+    },
+    "wide": {
+      "agreement": 0.12,
+      "speaker_coverage": 0.0,
+      "short_cuts": 0,
+      "avg_shot": 60.0
+    }
+  },
+  "highlights": {
+    "precision_at_3": 0.67
+  },
+  "processing_seconds": {
+    "Ingest + Sync": 4,
+    "Audio + Captions": 12,
+    "Perception": 9,
+    "AI Brain": 15,
+    "Switching": 1,
+    "Render": 6,
+    "Highlights": 8,
+    "Evaluation": 1
+  }
+}

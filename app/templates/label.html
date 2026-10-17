@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}FramePilot — Multi-Camera Labelling Tool: {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="section-header">
+  <div>
+    <span class="section-label" data-i18n="label_title">أداة تدريب وتقييم الإخراج</span>
+    <h2 class="page-title" dir="auto">{{ project.name }}</h2>
+    <p class="page-subtitle" data-i18n="label_hint">
+      استخدم الأزرار 1-4 لتبديل الكاميرا الحالية، وزر H لتحديد Highlight، و Backspace للتراجع.
+    </p>
+  </div>
+
+  <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+    <span class="chip" style="font-family: var(--font-mono); font-size: 0.9rem;">
+      <span data-i18n="label_current_cam">الكاميرا المختارة:</span> <bdi id="activeCamBadge" style="color: var(--accent-orange); font-weight: 700;">Cam 1</bdi>
+    </span>
+
+    <span class="chip" style="font-family: var(--font-mono); font-size: 0.9rem;">
+      <span data-i18n="label_saved_cuts">التبديلات:</span> <bdi id="cutCountBadge" style="font-weight: 700;">0</bdi>
+    </span>
+
+    <button onclick="saveLabels()" class="btn btn-primary" id="saveLabelsBtn" data-i18n="btn_save_labels">
+      💾 حفظ بيانات التقييم (Save Ground Truth)
+    </button>
+  </div>
+</div>
+
+<!-- Highlight recording banner -->
+<div id="highlightIndicator" style="display: none; background: rgba(239, 138, 44, 0.2); border: 1px solid var(--accent-orange); color: #ffffff; padding: 10px 16px; border-radius: var(--radius-md); margin-bottom: 20px; font-weight: 600; text-align: center; animation: pulseGlow 1.5s infinite;">
+  ✨ <span data-i18n="label_in_highlight">جاري تسجيل Highlight... اضغط H مرة أخرى للإغلاق</span>
+</div>
+
+<!-- Synchronized Video Grid -->
+<div class="label-videos-grid" id="videoGrid">
+  {% for c in cams %}
+  <div class="label-video-item" id="camWrapper{{ c }}">
+    <div class="label-cam-badge">Camera {{ c }}</div>
+    <video id="v{{ c }}" style="width: 100%; display: block;" muted preload="metadata">
+      <source src="/files/{{ sid }}/video/cam{{ c }}.mp4" type="video/mp4">
+      <source src="/files/{{ sid }}/raw/cam{{ c }}.mp4" type="video/mp4">
+    </video>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Cut Points Log -->
+<div class="card" style="margin-top: 24px;">
+  <h3 style="font-size: 1.05rem; color: var(--text-bright); margin-bottom: 12px;">
+    سجل التبديلات واللحظات المسجلة (Recorded Cut Points)
+  </h3>
+  <div id="cutsLog" style="max-height: 160px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-quiet); display: flex; flex-wrap: wrap; gap: 8px;">
+    <span style="color: var(--text-quiet);">لا توجد تبديلات مسجلة بعد. اضغط Play واستخدم الأرقام 1-4 أثناء المشاهدة.</span>
+  </div>
+</div>
+
+<!-- Session Metadata for JS -->
+<div id="labelMeta" data-sid="{{ sid }}" style="display: none;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/label.js?v={{ static_version }}"></script>
+{% endblock %}

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "h1",
+    "start": 27.5,
+    "end": 48.0,
+    "title_ar": "سؤال المرتبات",
+    "title_en": "The salary question",
+    "hook": "Why everyone laughed at the salary question",
+    "files": {
+      "16:9": "highlights/h1_169.mp4",
+      "9:16": "highlights/h1_916.mp4"
+    }
+  },
+  {
+    "id": "h2",
+    "start": 12.5,
+    "end": 27.0,
+    "title_ar": "أخطاء السي في",
+    "title_en": "CV mistakes to avoid",
+    "hook": "One page, real projects: the CV rule",
+    "files": {
+      "16:9": "highlights/h2_169.mp4",
+      "9:16": "highlights/h2_916.mp4"
+    }
+  }
+]
