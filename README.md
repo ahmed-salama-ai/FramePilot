@@ -453,6 +453,26 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000), create a new project, uploa
 wide camera and the language, and follow the progress. The web server handles the pages; the worker runs the
 pipeline and the other long jobs one at a time.
 
+### 7. Import from Direct Links or Google Drive
+
+FramePilot supports importing multi-camera video recordings directly from Google Drive share links, public folders, or direct HTTP/HTTPS video URLs:
+
+1. Open [http://127.0.0.1:8000/new](http://127.0.0.1:8000/new).
+2. Click the `+` action button next to the link input:
+   - Select **Attach a file from computer** to upload local videos.
+   - Select **Import from Link or Google Drive** and paste single video links or a public Google Drive folder URL (`https://drive.google.com/drive/folders/...`).
+3. Press **⚡ Import Link**. All camera recordings will be inspected and listed with interactive controls:
+   - **Re-order cameras:** Use `▲` and `▼` to set Camera 1, 2, 3 priority.
+   - **Quick preview:** Click `👁 Preview` to verify camera angles and audio before starting.
+   - **Google Drive tip:** Ensure the shared folder/file access is set to **"Anyone with the link" &rarr; "Viewer"** (not Editor) so files can be downloaded without sign-in.
+4. Select the Wide Camera and click **Upload & Start AI Directing**. Videos are streamed directly to disk in 128 KB chunks with zero RAM buffering, validated with `ffprobe`, and protected by multi-hop SSRF security checks.
+
+#### Testing the Link Downloader
+Run the test suite to verify SSRF protection, URL parsing, and file streaming:
+```bash
+pytest tests/test_downloader.py tests/test_web.py -k "import or ssrf or downloader"
+```
+
 ### Or use the command line
 
 Create a session folder with the camera files and an `upload.json`:
