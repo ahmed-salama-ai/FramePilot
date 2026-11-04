@@ -38,8 +38,33 @@
   <div class="progress-container" style="height: 14px;">
     <div id="mainProgressBar" class="progress-bar-fill" style="width: {{ job.progress | default(0) }}%;"></div>
   </div>
-  <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
-    <button id="notifyBtn" class="btn btn-secondary btn-sm" onclick="toggleNotify()">🔔</button>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+    <button id="cancelJobBtn" class="btn btn-sm btn-danger" onclick="confirmCancelJob()" style="display: {% if job.status in ['queued', 'running'] %}inline-flex{% else %}none{% endif %}; align-items: center; gap: 6px;">
+      <span>🛑</span>
+      <span data-i18n="btn_cancel_job">Cancel Operation</span>
+    </button>
+    <div style="display: flex; gap: 8px;">
+      <button id="notifyBtn" class="btn btn-secondary btn-sm" onclick="toggleNotify()">🔔</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cancelled Box (shown when cancelled) -->
+<div id="cancelledCard" class="card" style="display: {% if job.status == 'cancelled' %}block{% else %}none{% endif %}; border-color: rgba(234, 179, 8, 0.5); background: rgba(234, 179, 8, 0.05); margin-bottom: 24px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+    <div style="display: flex; align-items: center; gap: 10px; color: #facc15; font-weight: 700;">
+      <span style="font-size: 1.2rem;">🛑</span>
+      <div>
+        <div data-i18n="job_cancelled_title" style="font-size: 1rem;">This operation was cancelled.</div>
+        <div style="font-size: 0.82rem; color: var(--text-quiet); font-weight: normal; margin-top: 2px;">
+          All pipeline processing and AI tasks were safely terminated.
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <a href="/new" class="btn btn-primary btn-sm" data-i18n="btn_new_project">+ New Project</a>
+      <a href="/" class="btn btn-secondary btn-sm" data-i18n="nav_projects">Projects</a>
+    </div>
   </div>
 </div>
 

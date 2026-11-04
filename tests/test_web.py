@@ -592,3 +592,42 @@ def test_brand_clean_voice_and_music(client):
                                                        "remove": "music"})
     assert res.json()["music"] is None and not res.json()["clean_voice"]
 
+
+def test_api_import_inspect_ssrf(client):
+    """Ensure SSRF links are rejected by /api/import/inspect."""
+    res = client.post("/api/import/inspect", json={"url": "http://localhost/video.mp4"})
+    assert res.status_code == 400
+    assert "localhost" in res.text
+
+    res = client.post("/api/import/inspect", json={"url": "http://127.0.0.1:8080/private.mp4"})
+    assert res.status_code == 400
+    assert "localhost" in res.text or "private" in res.text or "Security violation" in res.text
+
+
+def test_api_import_inspect_valid_gdrive_and_direct(client):
+    """Ensure valid URLs return proper structure from /api/import/inspect."""
+    res = client.post("/api/import/inspect", json={"url": "https://example.com/interview.mp4"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["type"] == "file"
+    assert data["name"] == "interview.mp4"
+
+    res = client.post("/api/import/inspect", json={"url": "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["type"] == "file"
+    assert "1BxiMVs0" in data["file_id"]
+
+
+def test_create_project_rejects_ssrf_links(client):
+    """Ensure create_project rejects dangerous localhost or private links."""
+    res = client.post("/api/projects", data={
+        "name": "SSRF Attack Test",
+        "consent": "true",
+        "links_json": json.dumps(["http://127.0.0.1/hack.mp4", "http://localhost/hack2.mp4"])
+    })
+    assert res.status_code in (400, 403)
+    assert "localhost" in res.text or "Security violation" in res.text
+
+
+

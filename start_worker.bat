@@ -1,1 +1,2 @@
-.venv\Scripts\python.exe -m app.worker
+python -m app.worker
+pause
