@@ -97,8 +97,8 @@ audio:
   api_key_prefix: GEMINI_API_KEY
 
 ollama:
-  text_model: qwen3:8b
-  vision_model: qwen3-vl:4b-instruct
+  text_model: qwen3:1.7b
+  vision_model: qwen3-vl:2b
   embed_model: bge-m3
 
 brain:
