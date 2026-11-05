@@ -65,7 +65,7 @@ plus a close-up camera for each seat.
   typed at upload are matched to the voices.
 - **English words in Arabic speech.** A correction pass restores English technical terms that the transcriber dropped
   or wrote in Arabic letters, without rewriting the Arabic.
-- **Translation.** Each line is translated with the lines around it as context, by Gemini or by the local qwen3:1.7b
+- **Translation.** Each line is translated with the lines around it as context, by Gemini or by the local qwen3:8b
   when Gemini is not available. Every video can show Arabic and English captions together.
 - **Readable captions.** One caption per line of speech (at most 5 seconds and 42 characters, split at sentence ends),
   never two captions on screen at once, short replies joined as dialogue lines, Arabic and mixed Arabic/English lines
@@ -107,7 +107,7 @@ plus a close-up camera for each seat.
 
 ### Editor Agent
 
-A chat assistant on the results page, running locally on qwen3:1.7b with tool calling.
+A chat assistant on the results page, running locally on qwen3:8b with tool calling.
 
 - Takes requests in Arabic, English or Franco-Arabic, for example "make a 1-minute reel about salaries" or
   "اعمل كليب دقيقة ونص عن المرتبات وركز على الضيف".
@@ -201,7 +201,7 @@ flowchart TB
     S3["<b>3 &nbsp;Perception</b> (one process per camera)<br/>YOLO11s-pose: people and gestures<br/>MediaPipe Face Landmarker: faces and mouths<br/>OpenCV: sharpness, exposure, shake<br/>voice to person matching"]
     F3[("features.parquet<br/>speaker_map.json")]
 
-    S4["<b>4 &nbsp;AI Brain</b><br/>a grid of all cameras every 5 seconds<br/>qwen3-vl:2b in Ollama<br/>laughter check and smoothing"]
+    S4["<b>4 &nbsp;AI Brain</b><br/>a grid of all cameras every 5 seconds<br/>qwen3-vl:4b-instruct in Ollama<br/>laughter check and smoothing"]
     F4[("scene.jsonl")]
 
     S5["<b>5 &nbsp;Switching</b><br/>scorer: speaker, face, quality, gesture, shake<br/>scene-mode multipliers<br/>switcher: 5 editing rules<br/>split screen"]
@@ -217,7 +217,7 @@ flowchart TB
     S8["<b>8 &nbsp;Evaluation</b><br/>speaker coverage<br/>agreement with a human edit<br/>highlight precision"]
     F8[("metrics.json")]
 
-    AGENT["<b>Editor Agent</b> (chat in the web studio)<br/>qwen3:1.7b with tool calling<br/>bge-m3 search by meaning"]
+    AGENT["<b>Editor Agent</b> (chat in the web studio)<br/>qwen3:8b with tool calling<br/>bge-m3 search by meaning"]
     F9[("clips.json, clips/<br/>versions/vN/")]
 
     EXTRA["<b>Finishing jobs</b> (run by the worker)<br/>update video, trailer, thumbnails,<br/>publish kit, article, podcast, export"]
@@ -287,7 +287,7 @@ flowchart TB
 | Video | FFmpeg (NVENC or libx264), libass, OpenCV |
 | Vision | Ultralytics YOLO11s-pose, MediaPipe Face Landmarker |
 | Audio | Silero VAD, PANNs CNN14, WavLM (Hugging Face Transformers), soundfile |
-| Language | Gemini 3.5 Transcribe, Gemini 3.5 Flash, Gemini 3.1 Flash-Lite; Ollama with qwen3:1.7b, qwen3-vl:2b and bge-m3 |
+| Language | Gemini 3.5 Transcribe, Gemini 3.5 Flash, Gemini 3.1 Flash-Lite; Ollama with qwen3:8b, qwen3-vl:4b-instruct and bge-m3 |
 | Data | NumPy, SciPy, pandas, PyArrow (Parquet), Pydantic |
 | Exports | FCP7 XML, CMX3600 EDL, SRT, WebVTT, MP3 with ID3 chapters |
 | Tests | pytest |
@@ -355,9 +355,9 @@ Recordings, sessions, models and the database live in `data/`, which is never co
 |---|---|
 | Operating system | Windows 10/11 (main development platform) or Linux |
 | Python | 3.12 |
-| GPU | NVIDIA GPU with 8 GB of memory recommended (developed on an RTX 4060 laptop GPU); CPU-only mode is supported but slower |
+| GPU | NVIDIA GPU with 8 GB of memory recommended (developed on an RTX 4060 laptop GPU); recent driver for CUDA 13.0 |
 | FFmpeg | on the `PATH` (`ffmpeg -version` must work) |
-| Ollama | with `qwen3:1.7b`, `qwen3-vl:2b` and `bge-m3` (about 5 GB) |
+| Ollama | with `qwen3:8b`, `qwen3-vl:4b-instruct` and `bge-m3` (about 10 GB) |
 | Gemini API key | at least one, from [Google AI Studio](https://aistudio.google.com/apikey) |
 | Internet | for transcription, translation and titles (Gemini) and first-time model downloads |
 | Disk | about 20 GB for Python packages and models, plus space for your recordings |
@@ -384,14 +384,6 @@ Windows start scripts use it.
 another CUDA version, change the first three lines to the matching build listed on
 [pytorch.org](https://pytorch.org/get-started/locally/).
 
-On a computer without an NVIDIA GPU, install CPU-only PyTorch and omit the CUDA pins:
-
-```powershell
-pip install torch==2.14.1 torchvision==0.29.1 --index-url https://download.pytorch.org/whl/cpu
-$requirements = Get-Content requirements.txt | Where-Object { $_ -notmatch '^(--extra-index-url|torch==|torchvision==)' }
-pip install $requirements
-```
-
 ### 2. FFmpeg
 
 ```bash
@@ -406,15 +398,15 @@ Install Ollama from [ollama.com/download](https://ollama.com/download) (on Linux
 `curl -fsSL https://ollama.com/install.sh | sh`), then download the three models:
 
 ```bash
-ollama pull qwen3:1.7b
-ollama pull qwen3-vl:2b
+ollama pull qwen3:8b
+ollama pull qwen3-vl:4b-instruct
 ollama pull bge-m3
 ```
 
 | Model | Used for |
 |---|---|
-| `qwen3:1.7b` | Editor Agent; translation and titles when Gemini is not available |
-| `qwen3-vl:2b` | AI Brain (scene modes) |
+| `qwen3:8b` | Editor Agent; translation and titles when Gemini is not available |
+| `qwen3-vl:4b-instruct` | AI Brain (scene modes) |
 | `bge-m3` | the Editor Agent's transcript search |
 
 Ollama must be running whenever the pipeline or the web app runs.
@@ -554,7 +546,7 @@ The most useful ones:
 | `audio` | `chunk_seconds` | `0` | `0` sends the whole recording in one request (up to 30 minutes); `60` sends one-minute pieces |
 | `audio` | `segment_max_seconds`, `segment_max_chars` | `5`, `42` | the longest caption |
 | `audio` | `translate_model`, `speaker_model`, `english_words_model` | Gemini models | cloud models; `null` uses the local model instead (translation) or turns the step off (English words) |
-| `ollama` | `text_model`, `vision_model`, `embed_model` | `qwen3:1.7b`, `qwen3-vl:2b`, `bge-m3` | local models |
+| `ollama` | `text_model`, `vision_model`, `embed_model` | `qwen3:8b`, `qwen3-vl:4b-instruct`, `bge-m3` | local models |
 | `brain` | `every_seconds` | `5` | one scene label every 5 seconds |
 | `agent` | `max_clips`, `clip_seconds`, `timeout` | `3`, `[5, 180]`, `120` | clips per request, allowed clip length, seconds before an LLM request gives up |
 | `highlights` | `min_length`, `max_length`, `min_picks`, `max_picks` | `20`, `45`, `3`, `5` | highlight length in seconds and how many |
