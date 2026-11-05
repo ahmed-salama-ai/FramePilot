@@ -230,7 +230,7 @@ def is_picture(path: Path) -> bool:
 
 async def save_brand(folder: Path, settings: str = "", logo=None, intro=None, outro=None, remove=(), music=None):
     """brand.json + brand/ files in a session folder (upload or the results page). settings = JSON text with any of
-    logo_corner, logo_size, captions {text_color, box_color, box, size, word_color}, clean_voice;
+    logo_corner, logo_size, captions {text_color, box_color, box, size, word_color, animation_style}, clean_voice;
     remove = ["logo", "intro", "outro", "music"]."""
     from pydantic import ValidationError
     from ai_director.common.schemas import Brand
