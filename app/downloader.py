@@ -1,11 +1,13 @@
+import asyncio
 import ipaddress
 import json
 import logging
 import re
 import socket
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import httpx
 
@@ -30,7 +32,8 @@ class DownloadError(Exception):
 def validate_url_security(url: str) -> None:
     """Security check (SSRF protection).
     
-    Accepts only http and https. Rejects localhost, loopback, private IPs, and link-local.
+    Accepts only http and https. Rejects non-global IPs (private, loopback, link-local,
+    reserved, multicast, and CGNAT 100.64.0.0/10).
     """
     if not url or not isinstance(url, str):
         raise DownloadError("The provided URL is empty or invalid.")
@@ -64,9 +67,9 @@ def validate_url_security(url: str) -> None:
         ip_str = item[4][0]
         try:
             ip = ipaddress.ip_address(ip_str)
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            if not ip.is_global:
                 raise DownloadError(
-                    f"Security violation: link resolves to a private or internal IP address ({ip_str})."
+                    f"Security violation: link resolves to a non-global or internal IP address ({ip_str})."
                 )
         except ValueError:
             pass
@@ -101,7 +104,10 @@ def extract_gdrive_folder_id(url: str) -> Optional[str]:
     return None
 
 
-async def parse_gdrive_folder_items(url: str) -> List[Dict[str, str]]:
+async def parse_gdrive_folder_items(
+    url: str,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+) -> List[Dict[str, str]]:
     """Parse public Google Drive folder and list video files inside it."""
     folder_id = extract_gdrive_folder_id(url)
     if not folder_id:
@@ -122,7 +128,11 @@ async def parse_gdrive_folder_items(url: str) -> List[Dict[str, str]]:
     # Attempt 1: Fetch Google Drive folder embedded list view
     list_view_url = f"https://drive.google.com/embeddedfolderview?id={folder_id}#list"
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(CONNECT_TIMEOUT, read=25.0), follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(CONNECT_TIMEOUT, read=25.0),
+            follow_redirects=True,
+            transport=transport,
+        ) as client:
             resp = await client.get(list_view_url, headers=headers)
             if resp.status_code == 200 and "ServiceLogin" not in resp.text:
                 # Extract file links and names from table
@@ -141,15 +151,12 @@ async def parse_gdrive_folder_items(url: str) -> List[Dict[str, str]]:
     # Attempt 2: Standard folder view
     folder_url = f"https://drive.google.com/drive/folders/{folder_id}"
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(CONNECT_TIMEOUT, read=30.0), follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(CONNECT_TIMEOUT, read=30.0),
+            follow_redirects=True,
+            transport=transport,
+        ) as client:
             resp = await client.get(folder_url, headers=headers)
-            # If 404, check for common OCR/typo confusion (e.g. j vs i at the end of the folder ID)
-            if resp.status_code == 404 and "j" in folder_id[-6:]:
-                alt_id = folder_id[:-6] + folder_id[-6:].replace("j", "i")
-                alt_resp = await client.get(f"https://drive.google.com/drive/folders/{alt_id}", headers=headers)
-                if alt_resp.status_code == 200:
-                    resp = alt_resp
-                    folder_id = alt_id
     except Exception as e:
         raise DownloadError(f"Failed to connect to Google Drive: {e}")
 
@@ -199,14 +206,6 @@ async def parse_gdrive_folder_items(url: str) -> List[Dict[str, str]]:
         for fid, fname in std_matches:
             if fid != folder_id and fid not in found_files:
                 found_files[fid] = fname
-
-    if not found_files:
-        id_matches = re.findall(r'\["([a-zA-Z0-9_-]{28,})"', text)
-        name_matches = re.findall(r'"([^"\\]+\.(?:mp4|mov|mkv|avi|webm))"', text, re.IGNORECASE)
-        if name_matches and id_matches:
-            for i, name in enumerate(name_matches):
-                if i < len(id_matches):
-                    found_files[id_matches[i]] = name
 
     if not found_files:
         raise DownloadError(
@@ -265,15 +264,20 @@ async def stream_download_to_file(
     target_path: Path,
     max_bytes: int = MAX_VIDEO_BYTES,
     timeout: float = DEFAULT_TIMEOUT,
-    progress_callback=None
+    progress_callback=None,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
 ) -> int:
-    """Stream download a video file directly to disk.
+    """Stream download a video file directly to disk with an overall timeout.
     
     Supports Google Drive file share links and direct HTTP/HTTPS links.
-    Handles Google Drive large-file virus-scan confirmation.
+    Handles Google Drive large-file virus-scan confirmation forms (drive.usercontent.google.com).
     Re-validates SSRF on every redirect.
+    Enforces a strict overall deadline across all redirects and data streaming.
     """
     validate_url_security(url)
+
+    start_time = time.monotonic()
+    deadline = start_time + timeout
 
     # Resolve direct download URL for Google Drive files
     gdrive_file_id = extract_gdrive_file_id(url)
@@ -289,121 +293,188 @@ async def stream_download_to_file(
         )
     }
 
-    client_timeout = httpx.Timeout(timeout, connect=CONNECT_TIMEOUT)
+    client_timeout = httpx.Timeout(min(timeout, 60.0), connect=CONNECT_TIMEOUT)
     total_bytes = 0
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async with httpx.AsyncClient(timeout=client_timeout, follow_redirects=False, headers=headers) as client:
-        curr_url = download_url
-        redirect_count = 0
-        cookies = {}
+    try:
+        async with httpx.AsyncClient(
+            timeout=client_timeout,
+            follow_redirects=False,
+            headers=headers,
+            transport=transport,
+        ) as client:
+            curr_url = download_url
+            redirect_count = 0
+            cookies = {}
 
-        while redirect_count < 10:
-            validate_url_security(curr_url)
-            
-            req = client.build_request("GET", curr_url, cookies=cookies)
-            resp = await client.send(req, stream=True)
-
-            if resp.status_code in (301, 302, 303, 307, 308):
-                location = resp.headers.get("Location")
-                if not location:
-                    raise DownloadError("Download failed: Redirect response without valid Location header.")
-                
-                for k, v in resp.cookies.items():
-                    cookies[k] = v
-
-                await resp.aclose()
-                curr_url = str(httpx.URL(curr_url).join(location))
-                redirect_count += 1
-                continue
-
-            if resp.status_code == 404:
-                await resp.aclose()
-                raise DownloadError(
-                    "The file was not found (404 Not Found). "
-                    "If using Google Drive, make sure the file is set to 'Anyone with the link'."
-                )
-            if resp.status_code == 403:
-                await resp.aclose()
-                raise DownloadError(
-                    "Access forbidden (403 Forbidden). "
-                    "Please verify that the file sharing permissions allow anyone with the link to view/download."
-                )
-            if resp.status_code >= 400:
-                await resp.aclose()
-                raise DownloadError(f"HTTP request failed with status code {resp.status_code}.")
-
-            content_type = resp.headers.get("Content-Type", "").lower()
-            if "text/html" in content_type and gdrive_file_id:
-                html_bytes = await resp.aread()
-                html_text = html_bytes.decode("utf-8", errors="ignore")
-
-                if "accounts.google.com" in str(resp.url) or "ServiceLogin" in html_text:
+            while redirect_count < 10:
+                if time.monotonic() > deadline:
                     raise DownloadError(
-                        "This Google Drive file is Private. "
-                        "Please set the file sharing to 'Anyone with the link' in Google Drive."
+                        f"Download timed out: transfer took longer than {int(timeout)} seconds.",
+                        status_code=504
                     )
 
-                confirm_match = re.search(r'confirm=([0-9A-Za-z_-]+)', html_text)
-                confirm_token = confirm_match.group(1) if confirm_match else None
+                validate_url_security(curr_url)
                 
-                if not confirm_token:
-                    for c_name, c_val in resp.cookies.items():
-                        if c_name.startswith("download_warning"):
-                            confirm_token = c_val
-                            break
+                req = client.build_request("GET", curr_url, cookies=cookies)
+                resp = await client.send(req, stream=True)
 
-                if confirm_token:
-                    curr_url = f"https://drive.google.com/uc?export=download&confirm={confirm_token}&id={gdrive_file_id}"
+                if resp.status_code in (301, 302, 303, 307, 308):
+                    location = resp.headers.get("Location")
+                    if not location:
+                        raise DownloadError("Download failed: Redirect response without valid Location header.")
+                    
                     for k, v in resp.cookies.items():
                         cookies[k] = v
+
+                    await resp.aclose()
+                    curr_url = str(httpx.URL(curr_url).join(location))
                     redirect_count += 1
                     continue
-                else:
+
+                if resp.status_code == 404:
+                    await resp.aclose()
                     raise DownloadError(
-                        "Could not download file from Google Drive. Ensure the file is shared as 'Anyone with the link'."
+                        "The file was not found (404 Not Found). "
+                        "If using Google Drive, make sure the file is set to 'Anyone with the link'."
                     )
+                if resp.status_code == 403:
+                    await resp.aclose()
+                    raise DownloadError(
+                        "Access forbidden (403 Forbidden). "
+                        "Please verify that the file sharing permissions allow anyone with the link to view/download."
+                    )
+                if resp.status_code >= 400:
+                    await resp.aclose()
+                    raise DownloadError(f"HTTP request failed with status code {resp.status_code}.")
 
-            content_length = resp.headers.get("Content-Length")
-            if content_length:
-                try:
-                    cl_int = int(content_length)
-                    if cl_int > max_bytes:
-                        await resp.aclose()
+                content_type = resp.headers.get("Content-Type", "").lower()
+                if "text/html" in content_type and gdrive_file_id:
+                    html_bytes = await resp.aread()
+                    html_text = html_bytes.decode("utf-8", errors="ignore")
+
+                    if "accounts.google.com" in str(resp.url) or "ServiceLogin" in html_text:
                         raise DownloadError(
-                            f"File size exceeds limit ({cl_int // (1024*1024)} MB > {max_bytes // (1024*1024)} MB).",
-                            status_code=413
+                            "This Google Drive file is Private. "
+                            "Please set the file sharing to 'Anyone with the link' in Google Drive."
                         )
-                except ValueError:
-                    pass
 
-            try:
-                with open(target_path, "wb") as f:
-                    async for chunk in resp.aiter_bytes(chunk_size=128 * 1024):
-                        if not chunk:
-                            continue
-                        total_bytes += len(chunk)
-                        if total_bytes > max_bytes:
+                    next_download_url = None
+
+                    # 1. Drive large file confirmation form (posts/gets to drive.usercontent.google.com/download)
+                    form_action_match = re.search(r'<form[^>]+action="([^"]+)"', html_text, re.IGNORECASE)
+                    if form_action_match:
+                        action_url = form_action_match.group(1).replace("&amp;", "&")
+                        inputs = dict(re.findall(
+                            r'<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"',
+                            html_text,
+                            re.IGNORECASE,
+                        ))
+                        rev_inputs = dict(re.findall(
+                            r'<input[^>]+value="([^"]*)"[^>]+name="([^"]+)"',
+                            html_text,
+                            re.IGNORECASE,
+                        ))
+                        for k, v in rev_inputs.items():
+                            inputs.setdefault(v, k)
+
+                        action_full = urljoin(str(resp.url), action_url)
+                        query_sep = "&" if "?" in action_full else "?"
+                        next_download_url = action_full + query_sep + urlencode(inputs)
+
+                    # 2. Check for download link href containing confirm token
+                    if not next_download_url:
+                        link_match = re.search(r'<a[^>]+href="([^"]*confirm=[^"]*)"', html_text, re.IGNORECASE)
+                        if link_match:
+                            raw_href = link_match.group(1).replace("&amp;", "&")
+                            next_download_url = urljoin(str(resp.url), raw_href)
+
+                    # 3. Check for confirm token in regex or cookies
+                    if not next_download_url:
+                        confirm_match = re.search(r'confirm=([0-9A-Za-z_-]+)', html_text)
+                        confirm_token = confirm_match.group(1) if confirm_match else None
+                        if not confirm_token:
+                            for c_name, c_val in resp.cookies.items():
+                                if c_name.startswith("download_warning"):
+                                    confirm_token = c_val
+                                    break
+                        if confirm_token:
+                            next_download_url = f"https://drive.google.com/uc?export=download&confirm={confirm_token}&id={gdrive_file_id}"
+
+                    if next_download_url:
+                        curr_url = next_download_url
+                        for k, v in resp.cookies.items():
+                            cookies[k] = v
+                        redirect_count += 1
+                        continue
+                    else:
+                        raise DownloadError(
+                            "Could not download file from Google Drive. Ensure the file is shared as 'Anyone with the link'."
+                        )
+
+                content_length = resp.headers.get("Content-Length")
+                if content_length:
+                    try:
+                        cl_int = int(content_length)
+                        if cl_int > max_bytes:
+                            await resp.aclose()
                             raise DownloadError(
-                                f"File size exceeded maximum limit ({max_bytes // (1024*1024)} MB).",
+                                f"File size exceeds limit ({cl_int // (1024*1024)} MB > {max_bytes // (1024*1024)} MB).",
                                 status_code=413
                             )
-                        f.write(chunk)
-                        if progress_callback:
-                            progress_callback(total_bytes)
-            finally:
-                await resp.aclose()
+                    except ValueError:
+                        pass
 
-            break
+                try:
+                    with open(target_path, "wb") as f:
+                        aiter = resp.aiter_bytes(chunk_size=128 * 1024).__aiter__()
+                        while True:
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                raise DownloadError(
+                                    f"Download timed out: transfer took longer than {int(timeout)} seconds.",
+                                    status_code=504
+                                )
+                            try:
+                                chunk = await asyncio.wait_for(aiter.__anext__(), timeout=min(remaining, 60.0))
+                            except StopAsyncIteration:
+                                break
+                            except asyncio.TimeoutError:
+                                raise DownloadError(
+                                    f"Download timed out: transfer took longer than {int(timeout)} seconds.",
+                                    status_code=504
+                                )
 
-    if total_bytes == 0:
+                            if not chunk:
+                                continue
+                            total_bytes += len(chunk)
+                            if total_bytes > max_bytes:
+                                raise DownloadError(
+                                    f"File size exceeded maximum limit ({max_bytes // (1024*1024)} MB).",
+                                    status_code=413
+                                )
+                            f.write(chunk)
+                            if progress_callback:
+                                progress_callback(total_bytes)
+                finally:
+                    await resp.aclose()
+
+                break
+
+        if total_bytes == 0:
+            if target_path.exists():
+                target_path.unlink(missing_ok=True)
+            raise DownloadError("Download failed: The downloaded file is empty.")
+
+        validate_video_file(target_path)
+        return total_bytes
+
+    except Exception:
         if target_path.exists():
             target_path.unlink(missing_ok=True)
-        raise DownloadError("Download failed: The downloaded file is empty.")
-
-    validate_video_file(target_path)
-    return total_bytes
+        raise
 
 
 def validate_video_file(path: Path) -> None:
