@@ -630,4 +630,53 @@ def test_create_project_rejects_ssrf_links(client):
     assert "localhost" in res.text or "Security violation" in res.text
 
 
+def test_create_project_mixed_order_preserves_camera_positions(client, monkeypatch):
+    """Ensure mixed ordering [link, file, file] strictly assigns cam1 to link, cam2/cam3 to files."""
+    import io
+    from app import downloader
+
+    async def fake_stream_download(url, target_path, max_bytes=None, timeout=None, progress_callback=None):
+        target_path.write_bytes(b"LINK_DATA_CAM1")
+        return len(b"LINK_DATA_CAM1")
+
+    monkeypatch.setattr(downloader, "stream_download_to_file", fake_stream_download)
+
+    # Mock probe to return valid duration
+    import ai_director.ingest.probe as probe_mod
+    monkeypatch.setattr(probe_mod, "probe", lambda p: {"duration": 15.0, "fps": 30, "width": 1920, "height": 1080})
+
+    files = [
+        ("files", ("cam_file_A.mp4", io.BytesIO(b"FILE_DATA_A"), "video/mp4")),
+        ("files", ("cam_file_B.mp4", io.BytesIO(b"FILE_DATA_B"), "video/mp4")),
+    ]
+
+    items_order = [
+        {"type": "link", "url": "https://example.com/cam_link_1.mp4"},
+        {"type": "file", "index": 0},
+        {"type": "file", "index": 1},
+    ]
+
+    res = client.post("/api/projects", data={
+        "name": "Mixed Order Test",
+        "consent": "true",
+        "wide_cam": "1",
+        "language": "en",
+        "items_order_json": json.dumps(items_order),
+        "links_json": json.dumps([{"url": "https://example.com/cam_link_1.mp4"}]),
+    }, files=files)
+
+    assert res.status_code == 200, res.text
+    data = res.json()
+    job_id = data["job_id"]
+    job = db.get_job(job_id)
+    sid = job["session_id"]
+    session_raw = db.SESSIONS_DIR / sid / "raw"
+
+    # Verify camera 1 is the link, and camera 2 & 3 are the files in exact position
+    assert (session_raw / "cam1.mp4").read_bytes() == b"LINK_DATA_CAM1"
+    assert (session_raw / "cam2.mp4").read_bytes() == b"FILE_DATA_A"
+    assert (session_raw / "cam3.mp4").read_bytes() == b"FILE_DATA_B"
+
+
+
 

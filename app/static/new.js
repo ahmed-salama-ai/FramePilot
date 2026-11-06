@@ -504,32 +504,39 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Append local files and collected links
+    // Append local files, collected links, and unified items_order_json for exact camera ordering
     const linkItems = [];
-    selectedItems.forEach(item => {
-      if (item.type === "file") {
-        formData.append("files", item.file);
-      } else if (item.type === "link") {
-        linkItems.push({ url: item.url, name: item.name });
-      }
-    });
+      const orderedItems = [];
+      let fileCounter = 0;
 
-    formData.append("links_json", JSON.stringify(linkItems));
+      selectedItems.forEach((item, pos) => {
+        if (item.type === "file") {
+          formData.append("files", item.file);
+          orderedItems.push({ type: "file", index: fileCounter, name: item.name });
+          fileCounter++;
+        } else if (item.type === "link") {
+          linkItems.push({ url: item.url, name: item.name });
+          orderedItems.push({ type: "link", url: item.url, name: item.name });
+        }
+      });
 
-    if (submitBtn) submitBtn.disabled = true;
-    if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
+      formData.append("items_order_json", JSON.stringify(orderedItems));
+      formData.append("links_json", JSON.stringify(linkItems));
 
-    // Build per-camera multiCamProgressList
-    const multiCamProgressList = document.getElementById("multiCamProgressList");
-    if (multiCamProgressList) {
-      multiCamProgressList.innerHTML = "";
-      selectedItems.forEach((item, idx) => {
-        const row = document.createElement("div");
-        row.id = `camProgress_${idx}`;
-        row.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05); font-size: 0.83rem;";
-        const isLocal = item.type === "file";
-        const icon = isLocal ? "💻" : (item.source === "gdrive" ? "📁" : "🔗");
-        row.innerHTML = `
+      if (submitBtn) submitBtn.disabled = true;
+      if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
+
+      // Build per-camera multiCamProgressList
+      const multiCamProgressList = document.getElementById("multiCamProgressList");
+      if (multiCamProgressList) {
+        multiCamProgressList.innerHTML = "";
+        selectedItems.forEach((item, idx) => {
+          const row = document.createElement("div");
+          row.id = `camProgress_${idx}`;
+          row.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05); font-size: 0.83rem;";
+          const isLocal = item.type === "file";
+          const icon = isLocal ? "💻" : (item.source === "gdrive" ? "📁" : "🔗");
+          row.innerHTML = `
           <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
             <span style="font-weight: 700; color: var(--accent-orange); white-space: nowrap;">Cam ${idx + 1}:</span>
             <span style="color: var(--text-bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(item.name)}</span>
@@ -537,11 +544,11 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <span class="cam-status" style="color: var(--accent-orange); font-weight: 600; white-space: nowrap;">Preparing... ⏳</span>
         `;
-        multiCamProgressList.appendChild(row);
-      });
-    }
+          multiCamProgressList.appendChild(row);
+        });
+      }
 
-    const hasLinks = linkItems.length > 0;
+      const hasLinks = linkItems.length > 0;
       if (uploadStatusText) {
         uploadStatusText.textContent = hasLinks
           ? "Streaming cloud recordings to server and verifying..."
@@ -627,4 +634,4 @@ document.addEventListener("DOMContentLoaded", () => {
       xhr.open("POST", "/api/projects");
       xhr.send(formData);
     });
-});
+  });

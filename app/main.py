@@ -311,6 +311,7 @@ async def api_inspect_link(req: InspectLinkRequest):
 async def create_project(
     files: Optional[List[UploadFile]] = File(None),
     links_json: str = Form("[]"),
+    items_order_json: str = Form("[]"),
     name: str = Form(...),
     language: str = Form("ar"),
     wide_cam: int = Form(1),
@@ -329,10 +330,10 @@ async def create_project(
     if not consent:
         raise HTTPException(status_code=400, detail="Consent is required to process videos.")
 
-    # Parse links_json
+    # Parse links_json (legacy & direct fallback)
+    links = []
     try:
         raw_links = json.loads(links_json or "[]")
-        links = []
         for item in raw_links:
             if isinstance(item, str) and item.strip():
                 links.append(item.strip())
@@ -343,7 +344,26 @@ async def create_project(
 
     # Filter uploaded files
     valid_files = [f for f in (files or []) if getattr(f, "filename", None)]
-    total_cameras = len(valid_files) + len(links)
+
+    # Parse items_order_json for unified camera ordering
+    ordered_items = []
+    try:
+        raw_order = json.loads(items_order_json or "[]")
+        if isinstance(raw_order, list):
+            for it in raw_order:
+                if isinstance(it, dict) and it.get("type"):
+                    ordered_items.append(it)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="items_order_json must be valid JSON.")
+
+    # Fallback to legacy ordering (files first, then links) if items_order_json was not provided
+    if not ordered_items:
+        for idx in range(len(valid_files)):
+            ordered_items.append({"type": "file", "index": idx})
+        for link_url in links:
+            ordered_items.append({"type": "link", "url": link_url})
+
+    total_cameras = len(ordered_items)
 
     if not (2 <= total_cameras <= 4):
         raise HTTPException(
@@ -375,23 +395,29 @@ async def create_project(
         raw_dir = staging_dir / "raw"
         raw_dir.mkdir(parents=True)
 
-        cam_idx = 1
-        # Save uploaded files first
-        for file in valid_files:
-            await write_upload(file, raw_dir / f"cam{cam_idx}.mp4", MAX_VIDEO_BYTES, f"Video {cam_idx}")
-            cam_idx += 1
-
-        # Download links directly to disk
-        for link_url in links:
+        # Process each camera in exact user-defined order
+        for cam_idx, item in enumerate(ordered_items, start=1):
             target_cam = raw_dir / f"cam{cam_idx}.mp4"
-            try:
-                await stream_download_to_file(link_url, target_cam, MAX_VIDEO_BYTES)
-            except DownloadError as de:
-                raise HTTPException(status_code=de.status_code, detail=de.message)
-            except Exception as e:
-                logger.error(f"Download failed for {link_url}: {e}")
-                raise HTTPException(status_code=400, detail=f"فشل تحميل الفيديو من الرابط: {str(e)}")
-            cam_idx += 1
+            item_type = item.get("type")
+            if item_type == "file":
+                f_idx = item.get("index", item.get("file_index", 0))
+                if 0 <= f_idx < len(valid_files):
+                    await write_upload(valid_files[f_idx], target_cam, MAX_VIDEO_BYTES, f"Video {cam_idx}")
+                else:
+                    raise HTTPException(status_code=400, detail=f"Referenced file index {f_idx} is out of bounds.")
+            elif item_type == "link":
+                link_url = item.get("url")
+                if not link_url:
+                    raise HTTPException(status_code=400, detail=f"Missing link URL for Camera {cam_idx}.")
+                try:
+                    await stream_download_to_file(link_url, target_cam, MAX_VIDEO_BYTES)
+                except DownloadError as de:
+                    raise HTTPException(status_code=de.status_code, detail=de.message)
+                except Exception as e:
+                    logger.error(f"Download failed for {link_url}: {e}")
+                    raise HTTPException(status_code=400, detail=f"Download failed for video link: {str(e).splitlines()[0]}")
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported item type: {item_type}")
 
         if brand_json or any(f and getattr(f, "filename", "") for f in (logo, intro, outro, music)):
             await save_brand(staging_dir, brand_json, logo, intro, outro, music=music)
