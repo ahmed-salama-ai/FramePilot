@@ -142,11 +142,11 @@ def line_text(x, lit=None, colour=None, transition=False, base_colour=None, pop=
     before = x["prefix"] + " ".join(ws[:lit]) + (" " if lit else "")
     after = (" " if lit < len(ws) - 1 else "") + " ".join(ws[lit + 1:])
     if pop:
-        effect = r"{\fscx100\fscy100\t(0,180,\fscx130\fscy130)}"
+        effect = r"{\fscx100\fscy100\t(0,180,\fscx115\fscy115)}"
     else:
         effect = f"{{\\1c{colour}}}"
-        if transition:
-            effect = f"{{\\1c{base_colour}\\t(0,120,\\1c{colour})}}"
+        if transition and base_colour:
+            effect = f"{{\\1c{base_colour}\\t(0,60,\\1c{colour})}}"
     return f"{ass_text(before)}{effect}{ass_text(ws[lit])}{{\\r}}{ass_text(after)}"
 
 

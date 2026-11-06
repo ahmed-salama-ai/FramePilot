@@ -1,0 +1,93 @@
+import json
+
+from ai_director.audio.subtitles import caption_items
+from ai_director.director.render import write_ass
+
+
+def caption_session(tmp_path):
+    session = tmp_path / "session.json"
+    session.write_text(json.dumps({"language": "ar", "speaker_names": {}}), encoding="utf-8")
+    (tmp_path / "transcript.json").write_text(json.dumps([{
+        "id": 0,
+        "start": 0.1,
+        "end": 1.35,
+        "speaker": "SPEAKER_00",
+        "text": "أنا بحب Computer Vision 3 جدًا",
+        "translation": "I love Computer Vision 3 very much",
+        "words": [
+            {"w": "أنا", "start": 0.1, "end": 0.4},
+            {"w": "بحب", "start": 0.55, "end": 0.85},
+            {"w": "Computer", "start": 0.9, "end": 1.1},
+            {"w": "Vision", "start": 1.15, "end": 1.3},
+            {"w": "3", "start": 1.31, "end": 1.35},
+        ],
+    }], ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "brand.json").write_text(json.dumps({
+        "captions": {
+            "text_color": "#FFFFFF",
+            "word_color": "#4A3DFF",
+            "animation_style": "default",
+        },
+    }), encoding="utf-8")
+    return tmp_path
+
+
+def render_caption(session, tmp_path, style, *, vertical=False, langs="ar"):
+    brand = json.loads((session / "brand.json").read_text(encoding="utf-8"))
+    brand["captions"]["animation_style"] = style
+    (session / "brand.json").write_text(json.dumps(brand), encoding="utf-8")
+    output = tmp_path / f"{style}_{'916' if vertical else '169'}.ass"
+    write_ass(session, output, langs=langs, vertical=vertical, words=False)
+    return output.read_text(encoding="utf-8-sig")
+
+
+def test_write_ass_pop_scales_only_the_spoken_word(tmp_path):
+    session = caption_session(tmp_path)
+
+    text = render_caption(session, tmp_path, "pop")
+
+    assert r"\fscx100\fscy100\t(0,180,\fscx115\fscy115)" in text
+    assert "Computer" in text
+    assert "Vision" in text
+    assert "PlayResX: 384" in text
+
+
+def test_write_ass_karaoke_uses_cumulative_word_timing(tmp_path):
+    session = caption_session(tmp_path)
+
+    text = render_caption(session, tmp_path, "karaoke", langs="ar+en")
+
+    assert "&HFF3D4A&" in text
+    assert "أنا" in text
+    assert "بحب" in text
+    assert "Computer" in text
+    assert "Vision" in text
+    assert "3" in text
+    assert "I love Computer Vision 3 very much" in text
+
+
+def test_write_ass_default_keeps_original_caption_text_and_no_animation(tmp_path):
+    session = caption_session(tmp_path)
+    expected = caption_items(session, "ar")[0]["text"]
+
+    text = render_caption(session, tmp_path, "default")
+
+    dialogue = next(line for line in text.splitlines() if line.startswith("Dialogue: 0,"))
+    assert dialogue.endswith(",, " + expected) or dialogue.endswith(",," + expected)
+    assert r"\kf" not in text
+    assert r"\fscx" not in text
+
+
+def test_write_ass_karaoke_preserves_vertical_play_resolution(tmp_path):
+    session = caption_session(tmp_path)
+    transcript = json.loads((session / "transcript.json").read_text(encoding="utf-8"))
+    transcript[0]["translation"] = "the root cause, which is the admission system, so that the admission for"
+    (session / "transcript.json").write_text(json.dumps(transcript, ensure_ascii=False), encoding="utf-8")
+
+    text = render_caption(session, tmp_path, "karaoke", vertical=True, langs="ar+en")
+
+    assert "PlayResX: 384" in text
+    assert "PlayResY: 288" in text
+    assert "&HFF3D4A&" in text
+    assert "أنا" in text
+    assert "the root cause" in text
