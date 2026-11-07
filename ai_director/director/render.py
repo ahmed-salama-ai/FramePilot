@@ -134,8 +134,12 @@ def ass_bgr(hex_rgb):
     return f"&H{h[4:6]}{h[2:4]}{h[0:2]}&".upper()
 
 
-def line_text(x, lit=None, colour=None, transition=False, base_colour=None, pop=False, cumulative=False):
+def line_text(x, lit=None, colour=None, transition=False, base_colour=None, pop=False, cumulative=False, full=False):
     """One caption line as ASS text; lit = the index of the word being said -> that word in `colour`"""
+    if full and colour and x.get("words"):
+        prefix = ass_text(x.get("prefix", ""))
+        words_text = ass_text(" ".join(w["w"] for w in x["words"]))
+        return f"{prefix}{{\\1c{colour}}}{words_text}{{\\r}}"
     if lit is None:
         return ass_text(x["text"])
     ws = [w["w"] for w in x["words"]]
@@ -223,7 +227,8 @@ def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertic
                                   transition=animation == "karaoke",
                                   base_colour=ass_bgr(brand["captions"]["text_color"]),
                                   pop=animation == "pop" and lit is not None and lit[0] == i,
-                                  cumulative=animation == "karaoke")
+                                  cumulative=animation == "karaoke",
+                                  full=animation == "karaoke" and lit is not None and i < lit[0] and bool(line.get("words")))
                         for i, line in enumerate(x["lines"]))
                     events.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Caption,,0,0,0,,{text}")
             else:

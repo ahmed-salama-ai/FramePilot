@@ -126,3 +126,43 @@ def test_write_ass_karaoke_keeps_filled_words_during_long_pause(tmp_path):
     pause_event = next(line for line in dialogues if "0:00:00.55" in line and "0:00:02.50" in line)
     assert "&HFF3D4A&" in pause_event
     assert "بحب" in pause_event
+
+
+def test_write_ass_karaoke_keeps_previous_line_coloured_in_two_line_caption(tmp_path):
+    session = caption_session(tmp_path)
+    (session / "transcript.json").write_text(json.dumps([
+        {
+            "id": 0, "start": 0.1, "end": 0.8, "speaker": "SPEAKER_00",
+            "text": "عارفين اي حاجه",
+            "words": [
+                {"w": "عارفين", "start": 0.1, "end": 0.4},
+                {"w": "اي", "start": 0.45, "end": 0.6},
+                {"w": "حاجه", "start": 0.65, "end": 0.8},
+            ]
+        },
+        {
+            "id": 1, "start": 0.85, "end": 1.5, "speaker": "SPEAKER_01",
+            "text": "مانعرفش تفاصيل",
+            "words": [
+                {"w": "مانعرفش", "start": 0.85, "end": 1.15},
+                {"w": "تفاصيل", "start": 1.2, "end": 1.5},
+            ]
+        }
+    ], ensure_ascii=False), encoding="utf-8")
+
+    text = render_caption(session, tmp_path, "karaoke", langs="ar")
+
+    dialogues = [line for line in text.splitlines() if line.startswith("Dialogue:")]
+    assert len(dialogues) >= 5
+
+    # When the second line begins (at 0.85s), the first line must stay fully coloured in &HFF3D4A&
+    second_speaker_first_word = next(line for line in dialogues if line.startswith("Dialogue: 0,0:00:00.85"))
+    first_line, second_line = second_speaker_first_word.split(r"\N")
+    assert r"{\1c&HFF3D4A&}عارفين اي حاجه{\r}" in first_line
+    assert "مانعرفش" in second_line
+
+    # When the second speaker speaks the last word (at 1.20s), the first line remains fully coloured
+    second_speaker_last_word = next(line for line in dialogues if line.startswith("Dialogue: 0,0:00:01.20"))
+    first_line_last, second_line_last = second_speaker_last_word.split(r"\N")
+    assert r"{\1c&HFF3D4A&}عارفين اي حاجه{\r}" in first_line_last
+    assert r"{\1c&HFF3D4A&}مانعرفش {\r}" in second_line_last
