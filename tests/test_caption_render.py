@@ -65,6 +65,19 @@ def test_write_ass_karaoke_uses_cumulative_word_timing(tmp_path):
     assert "3" in text
     assert "I love Computer Vision 3 very much" in text
 
+    # Verify cumulative timing: earlier spoken words remain filled in the word colour
+    # as each successive word is spoken.
+    dialogues = [line for line in text.splitlines() if line.startswith("Dialogue:")]
+    assert len(dialogues) >= 5
+
+    # At step 2 ("Computer" active), preceding spoken words "أنا بحب" stay highlighted
+    assert r"{\1c&HFF3D4A&}أنا بحب {\r}" in dialogues[2]
+    assert r"Computer" in dialogues[2]
+
+    # At step 3 ("Vision" active), "أنا بحب Computer" stays highlighted
+    assert r"{\1c&HFF3D4A&}أنا بحب Computer {\r}" in dialogues[3]
+    assert r"Vision" in dialogues[3]
+
 
 def test_write_ass_default_keeps_original_caption_text_and_no_animation(tmp_path):
     session = caption_session(tmp_path)

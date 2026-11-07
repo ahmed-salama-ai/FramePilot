@@ -134,20 +134,24 @@ def ass_bgr(hex_rgb):
     return f"&H{h[4:6]}{h[2:4]}{h[0:2]}&".upper()
 
 
-def line_text(x, lit=None, colour=None, transition=False, base_colour=None, pop=False):
+def line_text(x, lit=None, colour=None, transition=False, base_colour=None, pop=False, cumulative=False):
     """One caption line as ASS text; lit = the index of the word being said -> that word in `colour`"""
     if lit is None:
         return ass_text(x["text"])
     ws = [w["w"] for w in x["words"]]
-    before = x["prefix"] + " ".join(ws[:lit]) + (" " if lit else "")
-    after = (" " if lit < len(ws) - 1 else "") + " ".join(ws[lit + 1:])
+    prefix = ass_text(x.get("prefix", ""))
+    if cumulative and lit > 0 and colour:
+        before = f"{prefix}{{\\1c{colour}}}{ass_text(' '.join(ws[:lit]))} {{\\r}}"
+    else:
+        before = prefix + ass_text(" ".join(ws[:lit])) + (" " if lit else "")
+    after = (" " if lit < len(ws) - 1 else "") + ass_text(" ".join(ws[lit + 1:]))
     if pop:
         effect = r"{\fscx100\fscy100\t(0,180,\fscx115\fscy115)}"
     else:
         effect = f"{{\\1c{colour}}}"
         if transition and base_colour:
             effect = f"{{\\1c{base_colour}\\t(0,60,\\1c{colour})}}"
-    return f"{ass_text(before)}{effect}{ass_text(ws[lit])}{{\\r}}{ass_text(after)}"
+    return f"{before}{effect}{ass_text(ws[lit])}{{\\r}}{after}"
 
 
 def word_steps(item, tmap, a, b):
@@ -214,7 +218,8 @@ def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertic
                         line_text(line, lit[1] if lit and lit[0] == i else None, colour,
                                   transition=animation == "karaoke",
                                   base_colour=ass_bgr(brand["captions"]["text_color"]),
-                                  pop=animation == "pop" and lit is not None and lit[0] == i)
+                                  pop=animation == "pop" and lit is not None and lit[0] == i,
+                                  cumulative=animation == "karaoke")
                         for i, line in enumerate(x["lines"]))
                     events.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Caption,,0,0,0,,{text}")
             else:
