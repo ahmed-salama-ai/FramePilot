@@ -592,3 +592,91 @@ def test_brand_clean_voice_and_music(client):
                                                        "remove": "music"})
     assert res.json()["music"] is None and not res.json()["clean_voice"]
 
+
+def test_api_import_inspect_ssrf(client):
+    """Ensure SSRF links are rejected by /api/import/inspect."""
+    res = client.post("/api/import/inspect", json={"url": "http://localhost/video.mp4"})
+    assert res.status_code == 400
+    assert "localhost" in res.text
+
+    res = client.post("/api/import/inspect", json={"url": "http://127.0.0.1:8080/private.mp4"})
+    assert res.status_code == 400
+    assert "localhost" in res.text or "private" in res.text or "Security violation" in res.text
+
+
+def test_api_import_inspect_valid_gdrive_and_direct(client):
+    """Ensure valid URLs return proper structure from /api/import/inspect."""
+    res = client.post("/api/import/inspect", json={"url": "https://example.com/interview.mp4"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["type"] == "file"
+    assert data["name"] == "interview.mp4"
+
+    res = client.post("/api/import/inspect", json={"url": "https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["type"] == "file"
+    assert "1BxiMVs0" in data["file_id"]
+
+
+def test_create_project_rejects_ssrf_links(client):
+    """Ensure create_project rejects dangerous localhost or private links."""
+    res = client.post("/api/projects", data={
+        "name": "SSRF Attack Test",
+        "consent": "true",
+        "links_json": json.dumps(["http://127.0.0.1/hack.mp4", "http://localhost/hack2.mp4"])
+    })
+    assert res.status_code in (400, 403)
+    assert "localhost" in res.text or "Security violation" in res.text
+
+
+def test_create_project_mixed_order_preserves_camera_positions(client, monkeypatch):
+    """Ensure mixed ordering [link, file, file] strictly assigns cam1 to link, cam2/cam3 to files."""
+    import io
+    from app import downloader
+
+    async def fake_stream_download(url, target_path, max_bytes=None, timeout=None, progress_callback=None):
+        target_path.write_bytes(b"LINK_DATA_CAM1")
+        return len(b"LINK_DATA_CAM1")
+
+    monkeypatch.setattr(downloader, "stream_download_to_file", fake_stream_download)
+
+    # Mock probe to return valid duration
+    import ai_director.ingest.probe as probe_mod
+    monkeypatch.setattr(probe_mod, "probe", lambda p: {"duration": 15.0, "fps": 30, "width": 1920, "height": 1080})
+
+    files = [
+        ("files", ("cam_file_A.mp4", io.BytesIO(b"FILE_DATA_A"), "video/mp4")),
+        ("files", ("cam_file_B.mp4", io.BytesIO(b"FILE_DATA_B"), "video/mp4")),
+    ]
+
+    items_order = [
+        {"type": "link", "url": "https://example.com/cam_link_1.mp4"},
+        {"type": "file", "index": 0},
+        {"type": "file", "index": 1},
+    ]
+
+    res = client.post("/api/projects", data={
+        "name": "Mixed Order Test",
+        "consent": "true",
+        "wide_cam": "1",
+        "language": "en",
+        "items_order_json": json.dumps(items_order),
+        "links_json": json.dumps([{"url": "https://example.com/cam_link_1.mp4"}]),
+    }, files=files)
+
+    assert res.status_code == 200, res.text
+    data = res.json()
+    job_id = data["job_id"]
+    job = db.get_job(job_id)
+    sid = job["session_id"]
+    session_raw = db.SESSIONS_DIR / sid / "raw"
+
+    # Verify camera 1 is the link, and camera 2 & 3 are the files in exact position
+    assert (session_raw / "cam1.mp4").read_bytes() == b"LINK_DATA_CAM1"
+    assert (session_raw / "cam2.mp4").read_bytes() == b"FILE_DATA_A"
+    assert (session_raw / "cam3.mp4").read_bytes() == b"FILE_DATA_B"
+
+
+
+

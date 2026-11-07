@@ -193,6 +193,21 @@ async function pollJob() {
       if (errText) errText.textContent = j.error || "Stage execution failed";
       const logDetails = document.getElementById("logDetails");
       if (logDetails) logDetails.textContent = j.log_tail || j.error || "";
+      const cancelBtn = document.getElementById("cancelJobBtn");
+      if (cancelBtn) cancelBtn.style.display = "none";
+      return;
+    } else if (j.status === "cancelled") {
+      clearInterval(timerInterval);
+      const cancelBtn = document.getElementById("cancelJobBtn");
+      if (cancelBtn) cancelBtn.style.display = "none";
+      const cancelledCard = document.getElementById("cancelledCard");
+      if (cancelledCard) cancelledCard.style.display = "block";
+      const stageEl = document.getElementById("currentStageText");
+      if (stageEl) stageEl.textContent = jtr("job_cancelled_title", "Cancelled");
+      const progressEl = document.getElementById("progressPercent");
+      if (progressEl) progressEl.textContent = "Cancelled";
+      const progressBar = document.getElementById("mainProgressBar");
+      if (progressBar) progressBar.style.background = "#eab308";
       return;
     }
 
@@ -235,6 +250,49 @@ async function retryJob() {
   } catch (e) {
     alert("Network error: " + e);
     if (btn) btn.disabled = false;
+  }
+}
+
+async function confirmCancelJob() {
+  const confirmMsg = jtr("confirm_cancel_job", "Are you sure you want to cancel this operation?");
+  if (!confirm(confirmMsg)) return;
+
+  const jobMeta = document.getElementById("jobMeta");
+  if (!jobMeta) return;
+  const jobId = parseInt(jobMeta.dataset.jobId, 10);
+  const cancelBtn = document.getElementById("cancelJobBtn");
+  if (cancelBtn) {
+    cancelBtn.disabled = true;
+    cancelBtn.innerHTML = `<span>⏳</span> <span>${jtr("job_stage_running", "Cancelling...")}</span>`;
+  }
+
+  try {
+    const res = await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+    if (res.ok) {
+      clearInterval(timerInterval);
+      if (cancelBtn) cancelBtn.style.display = "none";
+      const cancelledCard = document.getElementById("cancelledCard");
+      if (cancelledCard) cancelledCard.style.display = "block";
+      const stageEl = document.getElementById("currentStageText");
+      if (stageEl) stageEl.textContent = jtr("job_cancelled_title", "Cancelled");
+      const progressEl = document.getElementById("progressPercent");
+      if (progressEl) progressEl.textContent = "Cancelled";
+      const progressBar = document.getElementById("mainProgressBar");
+      if (progressBar) progressBar.style.background = "#eab308";
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.detail || "Failed to cancel job");
+      if (cancelBtn) {
+        cancelBtn.disabled = false;
+        cancelBtn.innerHTML = `<span>🛑</span> <span>${jtr("btn_cancel_job", "Cancel Operation")}</span>`;
+      }
+    }
+  } catch (e) {
+    alert("Network error: " + e);
+    if (cancelBtn) {
+      cancelBtn.disabled = false;
+      cancelBtn.innerHTML = `<span>🛑</span> <span>${jtr("btn_cancel_job", "Cancel Operation")}</span>`;
+    }
   }
 }
 
