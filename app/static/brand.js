@@ -2,7 +2,7 @@
 
 const BRAND_DEFAULT = { logo_corner: "top-right", logo_size: 0.12,
                         captions: { text_color: "#ffffff", box_color: "#000000", box: true, size: "medium",
-                                    word_color: "#ffd43b" },
+                                    word_color: "#ffd43b", animation_style: "default" },
                         clean_voice: false };
 let brandRemove = [];          // files the user asked to remove ("logo", "intro", "outro", "music")
 
@@ -18,7 +18,8 @@ function readBrandForm() {
         box_color: brandEl("brandBoxColor").value,
         box: brandEl("brandBoxStyle").value === "box",
         size: brandEl("brandCapSize").value,
-        word_color: brandEl("brandWordColor").value
+        word_color: brandEl("brandWordColor").value,
+        animation_style: brandEl("brandCaptionAnimation").value
       },
       clean_voice: brandEl("brandCleanVoice").checked
     },
@@ -50,6 +51,7 @@ function fillBrandForm(b) {
   brandEl("brandBoxStyle").value = c.box === false ? "outline" : "box";
   brandEl("brandCapSize").value = c.size || "medium";
   brandEl("brandWordColor").value = (c.word_color || "#ffd43b").toLowerCase();
+  brandEl("brandCaptionAnimation").value = c.animation_style || "default";
   brandEl("brandCleanVoice").checked = !!b.clean_voice;
   [["logo", "brandLogoNow"], ["intro", "brandIntroNow"], ["outro", "brandOutroNow"], ["music", "brandMusicNow"]].forEach(([key, id]) => {
     const el = brandEl(id);
