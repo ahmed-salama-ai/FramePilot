@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Maximum file size: 2 GB (matches MAX_VIDEO_BYTES in main.py)
 MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024
-DEFAULT_TIMEOUT = 600.0  # 10 minutes max for large video downloads
+DEFAULT_TIMEOUT = 3600.0  # 60 minutes generous overall deadline for large recordings up to 2 GB
 CONNECT_TIMEOUT = 15.0
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
@@ -424,6 +424,9 @@ async def stream_download_to_file(
                                 f"File size exceeds limit ({cl_int // (1024*1024)} MB > {max_bytes // (1024*1024)} MB).",
                                 status_code=413
                             )
+                        # Generous deadline proportional to file size (at least 60 minutes)
+                        dynamic_timeout = max(timeout, (cl_int / (1024 * 1024 * 1024)) * 3600.0)
+                        deadline = max(deadline, start_time + dynamic_timeout)
                     except ValueError:
                         pass
 
