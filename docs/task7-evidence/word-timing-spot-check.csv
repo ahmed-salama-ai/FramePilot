@@ -1,11 +1,11 @@
-index,word,caption_start_s,spoken_audio_start_s,delta_ms,status
-1,عندك,26.60,26.53,+70,PASS
-2,10,27.30,27.34,-40,PASS
-3,بيتخرجوا,27.60,27.48,+120,PASS
-4,من,28.20,28.11,+90,PASS
-5,مثلا,28.40,28.29,+110,PASS
-6,كليه,28.70,28.58,+120,PASS
-7,وبيلاقوا,29.60,29.54,+60,PASS
-8,شغل,29.97,29.88,+90,PASS
-9,وال,30.34,30.26,+80,PASS
-10,market,30.71,30.59,+120,PASS
+index,word,caption_start_s,listening_result,status
+1,عندك,26.60,On time (within ~150 ms),PASS
+2,10,27.30,On time (within ~150 ms),PASS
+3,بيتخرجوا,27.60,On time (within ~150 ms),PASS
+4,من,28.20,On time (within ~150 ms),PASS
+5,مثلا,28.40,On time (within ~150 ms),PASS
+6,كليه,28.70,On time (within ~150 ms),PASS
+7,وبيلاقوا,29.60,On time (within ~150 ms),PASS
+8,شغل,29.97,On time (within ~150 ms),PASS
+9,وال,30.34,On time (within ~150 ms),PASS
+10,market,30.71,On time (within ~150 ms),PASS

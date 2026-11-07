@@ -104,3 +104,25 @@ def test_write_ass_karaoke_preserves_vertical_play_resolution(tmp_path):
     assert "&HFF3D4A&" in text
     assert "أنا" in text
     assert "the root cause" in text
+
+
+def test_write_ass_karaoke_keeps_filled_words_during_long_pause(tmp_path):
+    session = caption_session(tmp_path)
+    transcript = json.loads((session / "transcript.json").read_text(encoding="utf-8"))
+    # Introduce a 1.65s pause between word 1 ("بحب") and word 2 ("Computer")
+    transcript[0]["words"][2]["start"] = 2.5
+    transcript[0]["words"][2]["end"] = 2.8
+    transcript[0]["words"][3]["start"] = 2.9
+    transcript[0]["words"][3]["end"] = 3.2
+    transcript[0]["words"][4]["start"] = 3.3
+    transcript[0]["words"][4]["end"] = 3.4
+    transcript[0]["end"] = 3.6
+    (session / "transcript.json").write_text(json.dumps(transcript, ensure_ascii=False), encoding="utf-8")
+
+    text = render_caption(session, tmp_path, "karaoke", langs="ar")
+
+    dialogues = [line for line in text.splitlines() if line.startswith("Dialogue:")]
+    # Event starting at 0.55 extends all the way to 2.50 across the pause
+    pause_event = next(line for line in dialogues if "0:00:00.55" in line and "0:00:02.50" in line)
+    assert "&HFF3D4A&" in pause_event
+    assert "بحب" in pause_event

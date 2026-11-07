@@ -154,12 +154,16 @@ def line_text(x, lit=None, colour=None, transition=False, base_colour=None, pop=
     return f"{before}{effect}{ass_text(ws[lit])}{{\\r}}{after}"
 
 
-def word_steps(item, tmap, a, b):
+def word_steps(item, tmap, a, b, hold_until_next=False):
     """Word-by-word captions"""
     spans = sorted((int(round(tmap(w["start"]) * 100)), int(round(tmap(w["end"]) * 100)), i, k)
                    for i, x in enumerate(item["lines"]) for k, w in enumerate(x["words"]))
-    spans = [(s0, nxt[0] if nxt and 0 <= nxt[0] - s1 < HOLD else s1, i, k)       #a short gap: the word stays lit
-             for (s0, s1, i, k), nxt in zip(spans, spans[1:] + [None])]
+    if hold_until_next:
+        spans = [(s0, nxt[0] if nxt else int(round(b * 100)), i, k)
+                 for (s0, s1, i, k), nxt in zip(spans, spans[1:] + [None])]
+    else:
+        spans = [(s0, nxt[0] if nxt and 0 <= nxt[0] - s1 < HOLD else s1, i, k)       #a short gap: the word stays lit
+                 for (s0, s1, i, k), nxt in zip(spans, spans[1:] + [None])]
     a, b = int(round(a * 100)), int(round(b * 100))
     points = sorted({a, b, *[min(max(t, a), b) for s0, s1, _, _ in spans for t in (s0, s1)]})
     out = []
@@ -213,7 +217,7 @@ def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertic
                 continue
             timed_words = any(line["words"] for line in x["lines"])
             if (animation in ("karaoke", "pop") or (animation == "default" and words)) and timed_words:
-                for a, b, lit in word_steps(x, lambda u: tmap(u) - w0, *t):
+                for a, b, lit in word_steps(x, lambda u: tmap(u) - w0, *t, hold_until_next=animation == "karaoke"):
                     text = "\\N".join(
                         line_text(line, lit[1] if lit and lit[0] == i else None, colour,
                                   transition=animation == "karaoke",

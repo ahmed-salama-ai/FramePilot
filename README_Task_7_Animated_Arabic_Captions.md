@@ -22,7 +22,7 @@ To apply a saved style to a finished video, use the existing **Update video** ac
 `ai_director/director/render.py` uses the existing caption items and their word-level start and end times:
 
 - **Pop** applies an ASS scale transform to only the word active in that time span. Other words keep the normal caption scale. The 115% maximum limits line movement and overflow.
-- **Karaoke** progressively highlights each spoken word in the brand highlight color matching the word timestamps from the transcript, keeping spoken words filled while preserving full bidirectional text shaping, RTL word order, and spacing.
+- **Karaoke** progressively highlights each spoken word in the brand highlight color matching the word timestamps from the transcript, keeping spoken words filled across mid-caption pauses while preserving full bidirectional text shaping, RTL word order, and spacing.
 - **Default** retains the existing caption behavior.
 
 No equal-duration timing is estimated and no artificial word timestamps are generated. If a caption does not have word timings that match its text, it remains static rather than animating the entire sentence or fabricating word timing.
@@ -49,7 +49,7 @@ Pop and Karaoke animation tags preserve word boundaries and spacing without brea
 
 ## Verification and limitations
 
-- The full test suite passed: **232 passed** (`pytest`).
+- The full test suite passed: **233 passed** (`pytest`).
 - Focused caption-render tests cover Pop tags, cumulative Karaoke word timing, vertical (9:16) play resolutions, and Default regressions.
 - Complete visual acceptance screenshots and audio timing spot-check are documented in [`docs/task7-evidence`](docs/task7-evidence/README.md).
 - Word-level animation requires usable word timings from the existing transcript. When those timings are missing or do not align with the caption text, the caption is intentionally left static.
