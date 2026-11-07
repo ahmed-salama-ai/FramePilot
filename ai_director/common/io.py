@@ -1,6 +1,45 @@
-import json, subprocess, sys
+import json, os, shutil, subprocess, sys
 from functools import lru_cache
 from pathlib import Path
+
+
+def ffmpeg_bin_dir():
+    """Folder that contains ffmpeg and ffprobe, including a WinGet install that never made it onto PATH."""
+    exe = shutil.which("ffmpeg")
+    probe = shutil.which("ffprobe")
+    if exe and probe:
+        return Path(exe).resolve().parent
+    roots = []
+    local = os.environ.get("LOCALAPPDATA")
+    if local:
+        roots.append(Path(local) / "Microsoft" / "WinGet" / "Packages")
+    roots += [Path.home() / "AppData" / "Local" / "Microsoft" / "WinGet" / "Packages",
+              Path(r"C:\ffmpeg\bin"), Path(r"C:\Program Files\ffmpeg\bin"),
+              Path(r"C:\Program Files\Gyan\FFmpeg\bin")]
+    for root in roots:
+        if not root.exists():
+            continue
+        if (root / "ffmpeg.exe").exists():
+            return root
+        for hit in root.glob("**/ffmpeg.exe"):
+            if (hit.parent / "ffprobe.exe").exists():
+                return hit.parent
+    return None
+
+
+def ensure_ffmpeg_on_path():
+    """Put ffmpeg/ffprobe on PATH for this process so subprocess.run(['ffmpeg', ...]) works on Windows."""
+    folder = ffmpeg_bin_dir()
+    if folder is None:
+        return None
+    prefix = str(folder)
+    path = os.environ.get("PATH", "")
+    if path.split(os.pathsep)[:1] != [prefix]:
+        os.environ["PATH"] = prefix + os.pathsep + path
+    return folder
+
+
+ensure_ffmpeg_on_path()
 
 
 def read_json(p): return json.loads(Path(p).read_text(encoding="utf-8"))

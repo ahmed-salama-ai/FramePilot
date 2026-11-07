@@ -69,7 +69,8 @@ plus a close-up camera for each seat.
   when Gemini is not available. Every video can show Arabic and English captions together.
 - **Readable captions.** One caption per line of speech (at most 5 seconds and 42 characters, split at sentence ends),
   never two captions on screen at once, short replies joined as dialogue lines, Arabic and mixed Arabic/English lines
-  in the right order, and the word being spoken lit up in clips.
+  in the right order, and the word being spoken lit up in clips. Listed swear words can be masked in SRT, VTT and
+  burned-in captions when profanity bleeping is on.
 - **Caption editor.** Fix any word in the browser. Word timings are kept, every save can be undone, and the original
   captions can be restored.
 - **One-language videos.** Download the video with Arabic and English captions, Arabic only, English only, or none.
@@ -79,6 +80,10 @@ plus a close-up camera for each seat.
 - **Loudness.** The full video and every clip are brought to -14 LUFS, the level YouTube and Spotify play at, with one
   fixed gain measured once per recording.
 - **Clean voice** (optional). Rumble removed, background noise reduced and voices made clearer.
+- **Profanity bleeping** (optional, off by default). An editable Egyptian Arabic and English wordlist
+  (`configs/profanity.txt`) is matched to transcript word times. Hits become a sine beep in the finished video and
+  clips, and the same words are masked in captions. Arabic spelling variants (diacritics, alef forms, taa marbuta/haa)
+  are normalised before matching so near-spellings still hit, without matching inside longer innocent words.
 
 ### Brand kit
 
@@ -122,8 +127,8 @@ A chat assistant on the results page, running locally on qwen3:8b with tool call
 
 ### Web app
 
-- **Upload** 2 to 4 cameras with the language, the wide camera, the names and roles of the people, an optional brand
-  kit, and a consent confirmation.
+- **Upload** 2 to 4 cameras with the language, the wide camera, the names and roles of the people, optional profanity
+  bleeping, an optional brand kit, and a consent confirmation.
 - **Progress** of the 8 stages with the place in the queue, a time estimate, a browser notification when the video is
   ready, and a retry button after a failure.
 - **Results studio:**
@@ -296,8 +301,9 @@ flowchart TB
 
 | File | Written by | Contents |
 |---|---|---|
-| `upload.json` | web app / you | name, language, wide camera, number of speakers, optional names |
-| `session.json` | Ingest | cameras, roles, sync offsets, duration |
+| `upload.json` | web app / you | name, language, wide camera, number of speakers, optional names, optional `bleep_profanity` |
+| `audio_bleeped.wav` | Audio | soundtrack with listed swear words replaced by a beep (only when bleeping is on and something matched) |
+| `session.json` | Ingest | cameras, roles, sync offsets, duration, optional `bleep_profanity` |
 | `video/camN.mp4`, `audio.wav` | Ingest | synced camera copies, 16 kHz mono audio |
 | `speech.json` | Audio | where someone is speaking (voice activity) |
 | `transcript.json`, `diarization.json` | Audio | rows with word times and translation, who talks when |
@@ -329,7 +335,7 @@ FramePilot/
 ├── ai_director/
 │   ├── common/       shared helpers, file names, data contracts, session checker
 │   ├── ingest/       probing, audio sync, synced camera copies
-│   ├── audio/        voice activity, transcription, speakers, translation, captions, laughter, caption editing
+│   ├── audio/        voice activity, transcription, speakers, translation, captions, laughter, caption editing, profanity bleeping
 │   ├── perception/   people (YOLO pose), faces and mouths (MediaPipe), speaker to camera matching
 │   ├── brain/        scene modes from the vision-language model
 │   ├── director/     scorer, switcher, split screen, render, pauses, zoom, cold open, name cards, brand, exports
@@ -337,7 +343,7 @@ FramePilot/
 │   ├── agent/        Editor Agent: chat loop, tools, transcript search
 │   └── pipeline.py   runs the stages in order
 ├── app/              FastAPI web app: pages, static files, background worker, SQLite database
-├── configs/          default.yaml (all settings), modes.yaml (score multipliers per scene mode)
+├── configs/          default.yaml (all settings), modes.yaml (score multipliers), profanity.txt (bleep wordlist)
 ├── eval/             evaluation stage: speaker coverage, agreement with a human edit, highlight precision
 ├── samples/mock_s00/ a small fake session with every contract file, used by the tests
 ├── tests/            pytest suite
@@ -546,6 +552,7 @@ The most useful ones:
 | `audio` | `chunk_seconds` | `0` | `0` sends the whole recording in one request (up to 30 minutes); `60` sends one-minute pieces |
 | `audio` | `segment_max_seconds`, `segment_max_chars` | `5`, `42` | the longest caption |
 | `audio` | `translate_model`, `speaker_model`, `english_words_model` | Gemini models | cloud models; `null` uses the local model instead (translation) or turns the step off (English words) |
+| `bleep` | `hz`, `pad`, `fade` | `1000`, `0.07`, `0.02` | beep pitch, extra time around each matched word, fade at each beep edge. The wordlist is `configs/profanity.txt` (or `profanity.txt` in the session folder). Turned on per recording with `bleep_profanity` at upload |
 | `ollama` | `text_model`, `vision_model`, `embed_model` | `qwen3:8b`, `qwen3-vl:4b-instruct`, `bge-m3` | local models |
 | `brain` | `every_seconds` | `5` | one scene label every 5 seconds |
 | `agent` | `max_clips`, `clip_seconds`, `timeout` | `3`, `[5, 180]`, `120` | clips per request, allowed clip length, seconds before an LLM request gives up |

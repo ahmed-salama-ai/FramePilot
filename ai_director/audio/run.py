@@ -5,6 +5,7 @@ from .asr import run_asr
 from .english_words import fix_english_words
 from .events import run_events
 from .speakers import run_speakers
+from .bleep import write_bleeped_audio
 from .subtitles import write_all_captions
 from .translate import run_translate
 from .vad import run_vad
@@ -30,6 +31,7 @@ def main(s: Path, translate=True):
         except Exception as e:
             print(f"  WARNING: translation skipped ({type(e).__name__}: {e})")
     print("  [6/7] captions");     write_all_captions(s)
+    write_bleeped_audio(s)
     print("  [7/7] loudness + laughter"); run_events(s)
 
 if __name__ == "__main__":
