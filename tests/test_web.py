@@ -272,6 +272,71 @@ def test_upload_preserves_bleep_setting(client):
         db.update_job(job["id"], status="done")
 
 
+def test_new_project_page_has_the_editing_style(client):
+    page = client.get("/new").text
+    assert 'id="styleBox"' in page and "/static/styles.js" in page and 'id="styleMinShot"' in page
+    assert client.get("/static/styles.js").status_code == 200
+
+
+def test_styles_api_gives_the_page_every_style_from_the_file(client):
+    data = client.get("/api/styles").json()
+    ids = [p["id"] for p in data["presets"]]
+    assert {"calm", "balanced", "lively", "custom"} <= set(ids) and data["default"] == "balanced"
+    for p in data["presets"]:
+        assert p["name"]["en"] and p["name"]["ar"] and p["description"]["en"] and p["description"]["ar"]
+        assert {"min_shot", "max_shot", "sensitivity", "split", "weights"} <= set(p["choices"])
+    assert data["limits"]["min_shot"] == [1.0, 6.0] and data["levels"]["split"]
+
+
+def test_style_check_api_accepts_a_style_and_explains_a_wrong_one(client):
+    ok = client.post("/api/styles/check", json={"preset": "lively", "remove_pauses": True})
+    assert ok.status_code == 200 and ok.json()["preset"] == "lively" and ok.json()["config"]["pauses"]["cut"] is True
+    bad = client.post("/api/styles/check", json={"preset": "custom", "choices": {"min_shot": 5, "max_shot": 6}})
+    assert bad.status_code == 400
+    detail = bad.json()["detail"]
+    assert "at least 2 seconds longer" in detail["en"] and "ثانية" in detail["ar"]
+    unknown = client.post("/api/styles/check", json={"preset": "chaos"})
+    assert unknown.status_code == 400 and "chaos" in unknown.json()["detail"]["en"]
+
+
+def two_cameras():
+    return [("files", ("cam1.mp4", b"camera one", "video/mp4")), ("files", ("cam2.mp4", b"camera two", "video/mp4"))]
+
+
+def test_upload_saves_the_chosen_style_with_the_job(client):
+    from ai_director.common.config import job_config
+    style = {"preset": "custom", "choices": {"min_shot": 3, "max_shot": 12, "split": "off"}, "remove_pauses": True}
+    res = client.post("/api/projects", files=two_cameras(),
+                      data={"name": "Styled", "consent": "true", "style_json": json.dumps(style)})
+    assert res.status_code == 200
+    sid = res.json()["session_id"]
+    saved = json.loads((SESSIONS / sid / "upload.json").read_text(encoding="utf-8"))["style"]
+    assert saved["preset"] == "custom" and saved["remove_pauses"] is True
+    assert saved["choices"]["min_shot"] == 3 and saved["choices"]["max_shot"] == 12   # every value kept
+    cfg = job_config(SESSIONS / sid)                                                      # and it reaches the pipeline
+    assert cfg["switcher"]["min_shot"] == 3 and cfg["switcher"]["max_shot"] == 12
+    assert cfg["split"]["enabled"] is False and cfg["pauses"]["cut"] is True
+    job = db.get_latest_job(sid)
+    if job:
+        db.update_job(job["id"], status="done")
+
+
+@pytest.mark.parametrize("style_json, words", [
+    (json.dumps({"preset": "custom", "choices": {"min_shot": 9}}), "Shortest shot must be between"),
+    (json.dumps({"preset": "custom", "choices": {"max_shot": 4.0}}), "Longest shot must be between"),
+    (json.dumps({"preset": "nope"}), "Unknown editing style"),
+    ("{not json", "not valid JSON"),
+])
+def test_upload_rejects_a_wrong_style_before_saving_anything(client, style_json, words):
+    before = sorted(p.name for p in SESSIONS.iterdir())
+    res = client.post("/api/projects", files=two_cameras(),
+                      data={"name": "Bad style", "consent": "true", "style_json": style_json})
+    assert res.status_code == 400
+    detail = res.json()["detail"]
+    assert words in detail["en"] and detail["ar"]                      # the message in both languages
+    assert sorted(p.name for p in SESSIONS.iterdir()) == before          # no session and no half-made upload
+
+
 def test_upload_size_failure_leaves_no_partial_session(client, monkeypatch):
     sid = db.new_session_id()
     monkeypatch.setattr("app.main.MAX_VIDEO_BYTES", 4)

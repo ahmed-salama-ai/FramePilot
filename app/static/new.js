@@ -483,6 +483,13 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // Editing style (styles.js): checked by the server before any video is sent
+    const style = typeof window.readStyleForm === "function" ? await window.readStyleForm() : { ok: true, value: null };
+    if (!style.ok) {
+      showError(style.message);
+      return;
+    }
+
     const formData = new FormData();
     const nameEl = document.getElementById("projectName");
     const langEl = document.getElementById("languageSelect");
@@ -497,6 +504,7 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("people_json", JSON.stringify(readPeople()));
     const bleepEl = document.getElementById("bleepProfanity");
     formData.append("bleep_profanity", bleepEl && bleepEl.checked ? "true" : "false");
+    if (style.value) formData.append("style_json", JSON.stringify(style.value));
 
     if (typeof readBrandForm === "function") {
       const brand = readBrandForm();
@@ -621,7 +629,10 @@ document.addEventListener("DOMContentLoaded", () => {
           let errDetail = "Upload / Download failed";
           try {
             const res = JSON.parse(xhr.responseText);
-            errDetail = res.detail || errDetail;
+            const d = res.detail;                          // a style error comes as {en, ar}
+            errDetail = (d && typeof d === "object" && !Array.isArray(d))
+              ? (d[typeof getLang === "function" ? getLang() : "en"] || d.en || errDetail)
+              : (d || errDetail);
           } catch (ex) { }
           showError(errDetail);
           if (submitBtn) submitBtn.disabled = false;
