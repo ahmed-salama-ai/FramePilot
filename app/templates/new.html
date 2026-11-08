@@ -55,6 +55,53 @@
       <small class="form-hint" style="display: block; margin-top: 6px;" data-i18n="people_hint">Each name you enter appears as a name card the first time that speaker talks.</small>
     </div>
 
+    <!-- Editing style (Task 2): styles.js fills it from /api/styles (configs/styles.yaml) -->
+    <div class="form-group" id="styleBox">
+      <label class="form-label" data-i18n="style_title">Editing style</label>
+      <div id="stylePresets" class="style-presets" role="radiogroup"></div>
+      <label class="style-check">
+        <input type="checkbox" id="styleRemovePauses">
+        <span data-i18n="style_pauses">Remove long pauses</span>
+      </label>
+      <small class="form-hint" id="stylePausesHint"></small>
+      <details id="styleAdvanced" class="brand-details style-advanced">
+        <summary data-i18n="style_advanced">Advanced</summary>
+        <p class="form-hint" data-i18n="style_advanced_hint">Changing a value switches the style to Custom.</p>
+        <div id="styleError" class="style-error" role="alert" style="display: none;"></div>
+        <div class="style-grid">
+          <label><span data-i18n="style_min_shot">Shortest shot (seconds)</span>
+            <input type="number" id="styleMinShot" class="form-control" step="0.5" inputmode="decimal"></label>
+          <label><span data-i18n="style_max_shot">Longest shot on one camera (seconds)</span>
+            <input type="number" id="styleMaxShot" class="form-control" step="1" inputmode="decimal"></label>
+          <label><span data-i18n="style_sensitivity">Switching sensitivity</span>
+            <select id="styleSensitivity" class="form-control" data-level="sensitivity"></select></label>
+          <label><span data-i18n="style_split">Split screen</span>
+            <select id="styleSplit" class="form-control" data-level="split"></select></label>
+          <label><span data-i18n="style_zooms">Zooms per minute (at most)</span>
+            <input type="number" id="styleZooms" class="form-control" step="1" inputmode="numeric"></label>
+          <label><span data-i18n="style_min_turn">Ignore replies shorter than (seconds)</span>
+            <input type="number" id="styleMinTurn" class="form-control" step="0.5" inputmode="decimal"></label>
+        </div>
+        <label class="style-check">
+          <input type="checkbox" id="styleReactions">
+          <span data-i18n="style_reactions">Reaction shots: show a listener during long turns</span>
+        </label>
+        <p class="form-label style-weights-title" data-i18n="style_weights">Camera choice weights</p>
+        <div class="style-weights">
+          <label><span data-i18n="style_w_speaker">Speaker</span>
+            <input type="number" id="styleW_speaker" class="form-control" step="0.1" inputmode="decimal"></label>
+          <label><span data-i18n="style_w_frontal">Facing the camera</span>
+            <input type="number" id="styleW_frontal" class="form-control" step="0.1" inputmode="decimal"></label>
+          <label><span data-i18n="style_w_quality">Image quality</span>
+            <input type="number" id="styleW_quality" class="form-control" step="0.1" inputmode="decimal"></label>
+          <label><span data-i18n="style_w_gesture">Gestures</span>
+            <input type="number" id="styleW_gesture" class="form-control" step="0.1" inputmode="decimal"></label>
+          <label><span data-i18n="style_w_shake">Camera shake</span>
+            <input type="number" id="styleW_shake" class="form-control" step="0.1" inputmode="decimal"></label>
+        </div>
+      </details>
+    </div>
+
     <div class="form-group">
       <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
         <input type="checkbox" id="bleepProfanity" name="bleep_profanity"
@@ -184,5 +231,6 @@
 
 {% block scripts %}
 <script src="/static/brand.js?v={{ static_version }}"></script>
+<script src="/static/styles.js?v={{ static_version }}"></script>
 <script src="/static/new.js?v={{ static_version }}"></script>
 {% endblock %}

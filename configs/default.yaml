@@ -70,6 +70,9 @@ switcher:
   hold: 0.4
   max_shot: 15.0
   low_score: 0.3
+  min_turn: 0.0        # seconds: a turn shorter than this gets no cut to its speaker ("ignore short replies"); 0 = off
+  reactions: false     # at max_shot, while the same person talks: a listener's close-up (if a face shows), not the wide shot
+  reaction_pause: 1.5  # seconds: for reaction shots, a breath this short still counts as the same person talking
 
 split:
   enabled: true

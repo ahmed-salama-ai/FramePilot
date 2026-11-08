@@ -1,0 +1,61 @@
+# Editing styles on the upload page (Task 2). Each style is a set of choices; ai_director/director/styles.py turns
+# them into default.yaml settings for that one job (saved in upload.json -> style).
+#
+# To add a style: copy one block under `presets`, give it a new id, a name and a description in English and Arabic,
+# and only the choices that differ from Balanced (a choice left out = Balanced's value). Restart the web app.
+#
+# Choices (their limits are checked in director/styles.py):
+#   min_shot          shortest shot, seconds (1-6)
+#   max_shot          longest time on one camera, seconds (5-60, at least min_shot + 2; split screens may be longer)
+#   sensitivity       low | normal | high: how readily the director cuts to a better camera (levels below)
+#   split             off | rarely | normal | often: the two-person split screen (levels below)
+#   zooms_per_minute  at most this many slow punch-ins per minute, 0-4 (0 = none). Only a ceiling: a punch-in needs
+#                     laughter or a strong moment inside a close-up of at least 3 s, so long shots (Calm) get more
+#                     than short ones (Lively) at the same number
+#   min_turn          seconds, 0-3: someone who talks for less than this gets no cut ("ignore short replies")
+#   reactions         true | false: when a shot reaches max_shot while the same person keeps talking, show a
+#                     listener's close-up (only if a face is visible) for min_shot, then the speaker again, instead of
+#                     the wide shot
+#   weights           how much each signal counts when choosing a camera: speaker, frontal, quality, gesture, shake (0-5)
+
+default: balanced
+
+levels:
+  sensitivity:                         # -> switcher.margin (how much better) and switcher.hold (for how long)
+    low:    {margin: 0.35, hold: 0.8}
+    normal: {margin: 0.2, hold: 0.4}    # = default.yaml
+    high:   {margin: 0.1, hold: 0.2}
+  split:                               # -> split.*
+    "off":  {enabled: false}
+    rarely: {enabled: true, turn_max: 4.0, min_turns: 4, min_seconds: 6.0, laugh: 0.35}
+    normal: {enabled: true, turn_max: 5.0, min_turns: 3, min_seconds: 4.0, laugh: 0.25}   # = default.yaml
+    often:  {enabled: true, turn_max: 6.0, min_turns: 2, min_seconds: 3.0, laugh: 0.2}
+
+presets:
+  calm:
+    name: {en: "Calm interview", ar: "مقابلة هادئة"}
+    description:
+      en: "Slow and respectful: stays on the speaker, few cuts, ignores short replies."
+      ar: "هادئ ومحترم: يبقى على المتكلم، قطعات قليلة، ويتجاهل الردود القصيرة."
+    choices: {min_shot: 4.0, max_shot: 25.0, sensitivity: low, split: rarely, zooms_per_minute: 0, min_turn: 1.5}
+
+  balanced:
+    name: {en: "Balanced", ar: "متوازن"}
+    description:
+      en: "Today's rhythm: follows the speaker and changes the shot after 15 s on one camera."
+      ar: "الإيقاع الحالي: يتبع المتكلم ويغيّر اللقطة بعد 15 ثانية على نفس الكاميرا."
+    choices: {}
+
+  lively:
+    name: {en: "Lively debate", ar: "نقاش حماسي"}
+    description:
+      en: "Fast and energetic: follows every interruption, frequent cuts and split screens."
+      ar: "سريع وحماسي: يتبع كل مقاطعة، مع قطعات كثيرة وشاشة مقسومة أكثر."
+    choices: {min_shot: 2.0, max_shot: 8.0, sensitivity: normal, split: often, zooms_per_minute: 3, reactions: true}
+
+  custom:
+    name: {en: "Custom", ar: "مخصص"}
+    description:
+      en: "Set the values yourself under Advanced (starts from Balanced)."
+      ar: "اضبط القيم بنفسك من «إعدادات متقدمة» (تبدأ من المتوازن)."
+    custom: true

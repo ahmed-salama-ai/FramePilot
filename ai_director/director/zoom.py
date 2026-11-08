@@ -2,6 +2,7 @@ from pathlib import Path
 
 import yaml
 
+from ai_director.common.config import job_config
 from ai_director.common.io import read_json
 from ai_director.common.paths import CONFIGS
 
@@ -19,8 +20,9 @@ def loudness_z(events):
 
 
 def zoom_plan(session_dir, cuts, cfg=None):
-    """{shot index: {"t0": edit time the push starts, "x": face x 0..1, "why": "laughter" | "strong"}}."""
-    cfg = cfg or CFG
+    """{shot index: {"t0": edit time the push starts, "x": face x 0..1, "why": "laughter" | "strong"}}.
+    cfg = the job's zoom settings (None: job_config(session_dir)["zoom"])."""
+    cfg = cfg or job_config(session_dir).get("zoom") or {"enabled": False}
     s = Path(session_dir)
     if not cfg.get("enabled") or not cuts or not (s / "audio_events.json").exists():
         return {}

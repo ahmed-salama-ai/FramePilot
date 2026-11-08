@@ -70,16 +70,16 @@ def audio_args(session_dir):
     return (["-af", lf] if lf else []) + ["-c:a", "aac", "-b:a", "192k"]
 
 
-def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None):
+def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None, cfg=None):
     """Cut every shot out of its camera, join the shots, add ONE continuous audio track. A split shot = its two
-    cameras side by side"""
+    cameras side by side. cfg = the settings to use (None: the job's own, job_config; another style's: a preview)."""
     meta = read_json(session_dir / "session.json")
     sound_src = soundtrack(session_dir)
     tmp = session_dir / "tmp"
     tmp.mkdir(exist_ok=True)
     if removed:
         cuts = fit_cuts(cuts, removed)                 #camera changes next to a cut pause moved into it (hidden cut)
-    zooms = zoom_plan(session_dir, cuts)
+    zooms = zoom_plan(session_dir, cuts, (cfg or {}).get("zoom"))
     names = []
     for i, c in enumerate(cuts):                       #1. one small video file per shot (per part, pauses cut out)
         for a, b in keep_parts(c["start"], c["end"], removed) if removed else [(c["start"], c["end"])]:

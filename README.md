@@ -48,6 +48,8 @@ plus a close-up camera for each seat.
      close-up).
   4. When every camera scores low, go to the wide shot.
   5. Otherwise, cut only when another camera is at least 20 % better and stays better for 0.4 seconds.
+- **Editing styles.** Calm interview, Balanced (the rules above, the default), Lively debate or Custom, chosen on the
+  upload page, change these rules for one recording. See [Editing styles](#9-editing-styles).
 - **Split screen.** Fast back-and-forth exchanges and visible reactions show both close-ups side by side, each half
   centred on the face of the person in the exchange.
 - **Punch-in zoom.** A slow push in on a close-up at laughter and at moments much louder than usual, at most twice a
@@ -131,8 +133,8 @@ A chat assistant on the results page, running locally on qwen3:8b with tool call
 
 ### Web app
 
-- **Upload** 2 to 4 cameras with the language, the wide camera, the names and roles of the people, optional profanity
-  bleeping, an optional brand kit, and a consent confirmation.
+- **Upload** 2 to 4 cameras with the language, the wide camera, the names and roles of the people, the editing style,
+  optional profanity bleeping, an optional brand kit, and a consent confirmation.
 - **Progress** of the 8 stages with the place in the queue, a time estimate, a browser notification when the video is
   ready, and a retry button after a failure.
 - **Results studio:**
@@ -508,6 +510,47 @@ in the captions.
 Known limits: a listed word is bleeped whatever it means in context (`حمار` is also the animal); English plurals
 (`idiots`) are not caught unless listed; a translated caption is only masked if its English word is listed too.
 
+### 9. Editing styles
+
+Choose how the video is cut on the upload page, under **Editing style**:
+
+| Style | Feel | Main values |
+|---|---|---|
+| Calm interview | stays on the speaker, few cuts, ignores short replies | shots 4 to 25 s, low sensitivity, split screen rarely, no zooms |
+| Balanced (default) | today's rhythm, exactly as `configs/default.yaml` | shots 2 to 15 s, normal sensitivity and split screen |
+| Lively debate | follows every interruption, frequent cuts | shots 2 to 8 s, split screen often, reaction shots, up to 3 zooms a minute |
+| Custom | your own values, starting from Balanced | set under **Advanced** |
+
+- **Advanced** shows every value: shortest and longest shot, switching sensitivity, split screen, zooms per minute,
+  ignore replies shorter than, reaction shots, and the five camera weights. Changing a value switches to Custom.
+  Wrong values are refused with a clear message in English or Arabic (for example, the longest shot must be at least
+  2 s longer than the shortest).
+- **Remove long pauses** works with any style.
+- The chosen style is saved in `upload.json` as `style`: the style's name, every value, and the settings it puts over
+  `default.yaml` for that job only. A job can be made again the same way even after the styles are retuned. A job
+  without a style (from the command line, or made before this) uses `default.yaml` as it is, which is Balanced.
+
+**Add a style:** open `configs/styles.yaml`, copy one block under `presets`, give it a new id, a name and a
+description in English and Arabic, and only the choices that differ from Balanced. Restart the web app: the new
+style appears on the upload page with no change to the page's code. The comments at the top of the file list every
+choice and its limits. Then check it and measure it on a real recording:
+
+```bash
+pytest tests/test_styles.py
+python -m eval.style_report data/sessions/s01            # the comparison table
+python -m eval.style_report data/sessions/s01 --render   # plus each style's video in data/sessions/s01/styles/
+```
+
+On s01 (10 minutes, 3 cameras), Lively debate makes 10.45 cuts per minute and Calm interview 6.47 (+62%), with
+average shots of 5.7 s and 9.1 s; Balanced gives the same edit as before, shot for shot.
+
+Test it:
+
+```bash
+pytest tests/test_styles.py tests/test_job_config.py tests/test_style_report.py
+pytest tests/test_web.py -k style
+```
+
 ### Or use the command line
 
 Create a session folder with the camera files and an `upload.json`:
@@ -580,7 +623,8 @@ On Linux: `cp -r samples/mock_s00 data/sessions/s00`.
 ## Configuration
 
 All settings are in `configs/default.yaml`; `configs/modes.yaml` holds the score multipliers for each scene mode.
-The most useful ones:
+The editing style chosen at upload (`configs/styles.yaml`, see [Editing styles](#9-editing-styles)) puts its own
+`switcher`, `split`, `scorer` and `zoom` values over these for that recording only. The most useful ones:
 
 | Section | Setting | Default | What it does |
 |---|---|---|---|

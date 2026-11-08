@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
 
+from ..common.config import job_config
 from ..common.io import read_json
 from ..director.render import render_clip
-from ..director.run import RULES
 
 FIT = 0.25
 
@@ -28,6 +28,7 @@ def people_x(s, feats):
 
 def strip_shots(s, shots, feats, keep=None):
     pos, diar = people_x(s, feats), read_json(s / "diarization.json") if (s / "diarization.json").exists() else []
+    min_shot = job_config(s)["switcher"]["min_shot"]                     # this job's shortest shot
     out = []
     for sh in shots:
         cam, a, b = sh["cam"], sh["start"], sh["end"]
@@ -55,7 +56,7 @@ def strip_shots(s, shots, feats, keep=None):
             changed = False
             ends = [p[0] for p in pieces[1:]] + [b]
             for i, (p, e) in enumerate(zip(pieces, ends)):
-                if e - p[0] < RULES["min_shot"]:
+                if e - p[0] < min_shot:
                     if i == 0:
                         pieces[1][0] = a                                     # the first one: the next starts at a
                     pieces.pop(i)

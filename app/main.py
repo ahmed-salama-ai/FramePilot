@@ -206,6 +206,29 @@ def parse_people(text: str) -> List[Dict[str, str]]:
     return out
 
 
+def check_style(data) -> Dict[str, Any]:
+    """The editing style chosen at upload ({"preset", "choices", "remove_pauses"}) -> what is saved with the job
+    (director/styles.py resolve). A wrong style -> 400 with the message in English and Arabic: {"en", "ar"}."""
+    from ai_director.director.styles import StyleError, resolve
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=400, detail={"en": "style: not valid JSON.", "ar": "النمط: ليس JSON صالحًا."})
+    try:
+        return resolve(data.get("preset"), data.get("choices"), data.get("remove_pauses", False))
+    except StyleError as e:
+        raise HTTPException(status_code=400, detail={"en": e.en, "ar": e.ar})
+
+
+def parse_style(text: str) -> Optional[Dict[str, Any]]:
+    """style_json from the upload form; empty = no style chosen (default.yaml as it is, the same as Balanced)."""
+    if not (text or "").strip():
+        return None
+    try:
+        data = json.loads(text)
+    except ValueError:
+        data = None
+    return check_style(data)
+
+
 def audio_seconds(path: Path):
     """How long a sound file is (ffprobe), None if it has no sound."""
     from ai_director.common.io import run
@@ -307,6 +330,19 @@ async def api_inspect_link(req: InspectLinkRequest):
         raise HTTPException(status_code=400, detail=f"فشل فحص الرابط: {str(e)}")
 
 
+@app.get("/api/styles")
+def get_styles():
+    """The editing styles for the upload page (configs/styles.yaml): names, descriptions, values, limits."""
+    from ai_director.director.styles import public_styles
+    return public_styles()
+
+
+@app.post("/api/styles/check")
+def check_style_api(data: Dict[str, Any]):
+    """The upload page checks a style before it uploads anything: 200 + the style, or 400 {"en", "ar"}."""
+    return check_style(data)
+
+
 @app.post("/api/projects")
 async def create_project(
     files: Optional[List[UploadFile]] = File(None),
@@ -319,6 +355,7 @@ async def create_project(
     consent: bool = Form(...),
     people_json: str = Form("[]"),
     bleep_profanity: str = Form("false"),
+    style_json: str = Form(""),
     brand_json: str = Form(""),
     logo: Optional[UploadFile] = File(None),
     intro: Optional[UploadFile] = File(None),
@@ -387,6 +424,7 @@ async def create_project(
     people = parse_people(people_json)
     if num_speakers is None and people:
         num_speakers = len(people)
+    style = parse_style(style_json)                    # checked before any video is uploaded or downloaded
 
     sid = db.new_session_id()
     session_dir = DATA_DIR / sid
@@ -432,6 +470,8 @@ async def create_project(
             "people": people,
             "bleep_profanity": str(bleep_profanity).strip().lower() in {"1", "true", "on", "yes"},
         }
+        if style is not None:
+            upload_data["style"] = style                   # preset + every value, so the edit can be made again
         (staging_dir / "upload.json").write_text(
             json.dumps(upload_data, ensure_ascii=False, indent=2),
             encoding="utf-8"

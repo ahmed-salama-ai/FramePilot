@@ -4,35 +4,38 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from ai_director.common.config import job_config
 from ai_director.common.io import read_json
 from ai_director.common.paths import CONFIGS
 
-CFG = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["split"]
+CFG = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["split"]   # a job's own: job_config
 FACES = 0.5                     #both close-ups must show a face in at least half of the moment (nobody there: no split)
 
 
-def cam_turns(diar, spk_map, pair):
+def cam_turns(diar, spk_map, pair, cfg=None):
     """The talk as camera turns"""
+    cfg = cfg or CFG
     out = []
     for d in sorted(diar, key=lambda d: d["start"]):
         cam = spk_map.get(d["speaker"])
         cam = cam if cam in pair else None
-        if out and cam is not None and out[-1]["cam"] == cam and d["start"] - out[-1]["end"] <= CFG["max_gap"]:
+        if out and cam is not None and out[-1]["cam"] == cam and d["start"] - out[-1]["end"] <= cfg["max_gap"]:
             out[-1]["end"] = max(out[-1]["end"], d["end"])
         else:
             out.append({"cam": cam, "start": d["start"], "end": d["end"]})
     return out
 
 
-def fast_talk(turns):
+def fast_talk(turns, cfg=None):
+    cfg = cfg or CFG
     runs, cur = [], []
 
     def close():
-        if len(cur) >= CFG["min_turns"] and cur[-1]["end"] - cur[0]["start"] >= CFG["min_seconds"]:
+        if len(cur) >= cfg["min_turns"] and cur[-1]["end"] - cur[0]["start"] >= cfg["min_seconds"]:
             runs.append(list(cur))
     for t in turns:
-        ok = t["cam"] is not None and t["end"] - t["start"] <= CFG["turn_max"]
-        if ok and cur and t["cam"] != cur[-1]["cam"] and t["start"] - cur[-1]["end"] <= CFG["max_gap"]:
+        ok = t["cam"] is not None and t["end"] - t["start"] <= cfg["turn_max"]
+        if ok and cur and t["cam"] != cur[-1]["cam"] and t["start"] - cur[-1]["end"] <= cfg["max_gap"]:
             cur.append(t)
         else:
             close()
@@ -53,8 +56,9 @@ def mouth_agrees(feats, run, pair):
     return not votes or sum(votes) > len(votes) / 2
 
 
-def reactions(events, scene, diar, spk_map, pair):
-    times = {e["t"] for e in events if e["laugh"] >= CFG["laugh"]}
+def reactions(events, scene, diar, spk_map, pair, cfg=None):
+    cfg = cfg or CFG
+    times = {e["t"] for e in events if e["laugh"] >= cfg["laugh"]}
     times |= {int(r["t"]) + k for r in scene if r.get("event") == "laughter" or r.get("raw_mode") == "reaction"
               for k in range(5)}
     talk = [d for d in diar if spk_map.get(d["speaker"]) in pair]
@@ -66,7 +70,7 @@ def reactions(events, scene, diar, spk_map, pair):
             out[-1][1] = t + 1
         else:
             out.append([t, t + 1])
-    pad, least = CFG["react_pad"], CFG["min_seconds"]
+    pad, least = cfg["react_pad"], cfg["min_seconds"]
     res = []
     for a, b in out:
         a, b = a - pad, b + pad
@@ -86,26 +90,28 @@ def face_at(feats, diar, spk_map, cam, a, b):
     return round(float(x.median()), 3) if len(x) else 0.5
 
 
-def split_moments(s):
-    if not CFG["enabled"]:
+def split_moments(s, cfg=None):
+    """cfg = the job's split settings (None: job_config(s)["split"])."""
+    cfg = cfg or job_config(s)["split"]
+    if not cfg["enabled"]:
         return []
     meta = read_json(s / "session.json")
     close = sorted(c["id"] for c in meta["cameras"] if c["role"] == "closeup")
     need = [s / "diarization.json", s / "speaker_map.json", s / "features.parquet"]
     if len(close) != 2 or not all(f.exists() for f in need):
         return []
-    pair = CFG["order"] if sorted(CFG["order"] or []) == close else close
+    pair = cfg["order"] if sorted(cfg["order"] or []) == close else close
     diar, spk_map = read_json(s / "diarization.json"), read_json(s / "speaker_map.json")
     feats = pd.read_parquet(s / "features.parquet", columns=["t", "cam", "face_area", "face_x", "mouth_motion"])
-    found = [(r[0]["start"], r[-1]["end"], "fast talk") for r in fast_talk(cam_turns(diar, spk_map, pair))
-             if not CFG["mouth_check"] or mouth_agrees(feats, r, pair)]
+    found = [(r[0]["start"], r[-1]["end"], "fast talk") for r in fast_talk(cam_turns(diar, spk_map, pair, cfg), cfg)
+             if not cfg["mouth_check"] or mouth_agrees(feats, r, pair)]
     events = read_json(s / "audio_events.json") if (s / "audio_events.json").exists() else []
     scene = ([json.loads(x) for x in (s / "scene.jsonl").read_text(encoding="utf-8").splitlines() if x.strip()]
              if (s / "scene.jsonl").exists() else [])
-    found += [(a, b, "reaction") for a, b in reactions(events, scene, diar, spk_map, pair)]
+    found += [(a, b, "reaction") for a, b in reactions(events, scene, diar, spk_map, pair, cfg)]
     joined = []
     for a, b, why in sorted(found):
-        if joined and a - joined[-1][1] < CFG["join_gap"]:
+        if joined and a - joined[-1][1] < cfg["join_gap"]:
             joined[-1] = (joined[-1][0], max(joined[-1][1], b), joined[-1][2] if joined[-1][2] == why else "both")
         else:
             joined.append((a, b, why))

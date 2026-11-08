@@ -1,6 +1,7 @@
 import pandas as pd
 import yaml
 
+from ai_director.common.config import job_config
 from ai_director.common.io import read_json, session_from_argv
 from ai_director.common.paths import CONFIGS
 
@@ -19,18 +20,21 @@ def load_modes(session_dir, times):
     return m["mode"].fillna("conversation").values
 
 
-def score(session_dir, boost=None, force_mode=None):
+def score(session_dir, boost=None, force_mode=None, cfg=None):
+    """cfg = the job's scorer settings (None: job_config(session_dir)["scorer"])."""
+    conf = cfg or job_config(session_dir)["scorer"]
+    w = conf["weights"]
     f = pd.read_parquet(session_dir / "features.parquet").sort_values(["t", "cam"]).reset_index(drop=True)
     roles = {c["id"]: c["role"] for c in read_json(session_dir / "session.json")["cameras"]}
 
-    size = (f.face_area / CFG["face_full"]).clip(upper=1)
+    size = (f.face_area / conf["face_full"]).clip(upper=1)
     someone = (f.num_people > 0) | (f.face_area > 0)
-    size = size.clip(lower=CFG["no_face_size"]).where(someone, 0.0)
-    base = (W["speaker"] * f.speaker_prob * size
-            + W["frontal"] * f.frontalness
-            + W["quality"] * (0.6 * f.sharpness + 0.4 * f.exposure_ok)
-            + W["gesture"] * f.gesture_score
-            - W["shake"] * f.shake).clip(lower=0.01)
+    size = size.clip(lower=conf["no_face_size"]).where(someone, 0.0)
+    base = (w["speaker"] * f.speaker_prob * size
+            + w["frontal"] * f.frontalness
+            + w["quality"] * (0.6 * f.sharpness + 0.4 * f.exposure_ok)
+            + w["gesture"] * f.gesture_score
+            - w["shake"] * f.shake).clip(lower=0.01)
 
     f["mode"] = force_mode or load_modes(session_dir, f.t.values)
     mult = [MODES[m][roles[c]] for m, c in zip(f["mode"], f.cam)]
