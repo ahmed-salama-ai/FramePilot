@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from ai_director.audio.bleep import soundtrack
 from ai_director.common.io import h264, quality, read_json, run, session_from_argv   # h264(): GPU or CPU, 8-bit
 from ai_director.common.paths import CONFIGS
 from ai_director.director.brand import caption_fields, load_brand, logo_overlay
@@ -45,15 +46,16 @@ def loudness_filter(session_dir):
     s = Path(session_dir)
     cache = s / "tmp" / "loudness.json"
     m = read_json(cache) if cache.exists() else {}
-    if m.get("target") != LOUDNESS or m.get("clean", "") != clean:
-        ref = read_json(s / "session.json")["reference_cam"]
-        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", f"video/cam{ref}.mp4", "-vn", "-af",
+    ref = soundtrack(s)
+    if m.get("target") != LOUDNESS or m.get("clean", "") != clean or m.get("src") != ref:
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", ref, "-vn", "-af",
                             (f"{clean}," if clean else "") + f"loudnorm=I={LOUDNESS}:TP=-1.5:LRA=11:print_format=json",
                             "-f", "null", "-"],
                            cwd=s, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"Command failed: ffmpeg (loudness)\n{r.stderr[-1500:]}")
-        m = {**json.loads(r.stderr[r.stderr.rindex("{"):r.stderr.rindex("}") + 1]), "target": LOUDNESS, "clean": clean}
+        m = {**json.loads(r.stderr[r.stderr.rindex("{"):r.stderr.rindex("}") + 1]), "target": LOUDNESS, "clean": clean,
+             "src": ref}
         cache.parent.mkdir(exist_ok=True)
         cache.write_text(json.dumps(m, indent=2), encoding="utf-8")
     return ((f"{clean}," if clean else "") +
@@ -72,7 +74,7 @@ def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None, cf
     """Cut every shot out of its camera, join the shots, add ONE continuous audio track. A split shot = its two
     cameras side by side. cfg = the settings to use (None: the job's own, job_config; another style's: a preview)."""
     meta = read_json(session_dir / "session.json")
-    ref = meta["reference_cam"]
+    sound_src = soundtrack(session_dir)
     tmp = session_dir / "tmp"
     tmp.mkdir(exist_ok=True)
     if removed:
@@ -110,7 +112,7 @@ def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None, cf
                  "-c:a", "aac", "-b:a", "192k"]
     else:
         sound = ["-map", "0:v", "-map", "1:a", *audio_args(session_dir)]
-    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "tmp/list.txt", "-i", f"video/cam{ref}.mp4",
+    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "tmp/list.txt", "-i", sound_src,
          *sound, "-c:v", "copy", "-shortest", out], cwd=session_dir)
     for k in range(len(names)):                        #4. clean up the shot files
         (tmp / f"seg{k:04d}.mp4").unlink()
@@ -134,22 +136,40 @@ def ass_bgr(hex_rgb):
     return f"&H{h[4:6]}{h[2:4]}{h[0:2]}&".upper()
 
 
-def line_text(x, lit=None, colour=None):
+def line_text(x, lit=None, colour=None, transition=False, base_colour=None, pop=False, cumulative=False, full=False):
     """One caption line as ASS text; lit = the index of the word being said -> that word in `colour`"""
+    if full and colour and x.get("words"):
+        prefix = ass_text(x.get("prefix", ""))
+        words_text = ass_text(" ".join(w["w"] for w in x["words"]))
+        return f"{prefix}{{\\1c{colour}}}{words_text}{{\\r}}"
     if lit is None:
         return ass_text(x["text"])
     ws = [w["w"] for w in x["words"]]
-    before = x["prefix"] + " ".join(ws[:lit]) + (" " if lit else "")
-    after = (" " if lit < len(ws) - 1 else "") + " ".join(ws[lit + 1:])
-    return f"{ass_text(before)}{{\\1c{colour}}}{ass_text(ws[lit])}{{\\r}}{ass_text(after)}"
+    prefix = ass_text(x.get("prefix", ""))
+    if cumulative and lit > 0 and colour:
+        before = f"{prefix}{{\\1c{colour}}}{ass_text(' '.join(ws[:lit]))} {{\\r}}"
+    else:
+        before = prefix + ass_text(" ".join(ws[:lit])) + (" " if lit else "")
+    after = (" " if lit < len(ws) - 1 else "") + ass_text(" ".join(ws[lit + 1:]))
+    if pop:
+        effect = r"{\fscx100\fscy100\t(0,180,\fscx115\fscy115)}"
+    else:
+        effect = f"{{\\1c{colour}}}"
+        if transition and base_colour:
+            effect = f"{{\\1c{base_colour}\\t(0,60,\\1c{colour})}}"
+    return f"{before}{effect}{ass_text(ws[lit])}{{\\r}}{after}"
 
 
-def word_steps(item, tmap, a, b):
+def word_steps(item, tmap, a, b, hold_until_next=False):
     """Word-by-word captions"""
     spans = sorted((int(round(tmap(w["start"]) * 100)), int(round(tmap(w["end"]) * 100)), i, k)
                    for i, x in enumerate(item["lines"]) for k, w in enumerate(x["words"]))
-    spans = [(s0, nxt[0] if nxt and 0 <= nxt[0] - s1 < HOLD else s1, i, k)       #a short gap: the word stays lit
-             for (s0, s1, i, k), nxt in zip(spans, spans[1:] + [None])]
+    if hold_until_next:
+        spans = [(s0, nxt[0] if nxt else int(round(b * 100)), i, k)
+                 for (s0, s1, i, k), nxt in zip(spans, spans[1:] + [None])]
+    else:
+        spans = [(s0, nxt[0] if nxt and 0 <= nxt[0] - s1 < HOLD else s1, i, k)       #a short gap: the word stays lit
+                 for (s0, s1, i, k), nxt in zip(spans, spans[1:] + [None])]
     a, b = int(round(a * 100)), int(round(b * 100))
     points = sorted({a, b, *[min(max(t, a), b) for s0, s1, _, _ in spans for t in (s0, s1)]})
     out = []
@@ -179,6 +199,7 @@ def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertic
     if words is None:
         words = bool(WORDS.get("clips" if window and not cuts else "program"))
     colour = ass_bgr(brand["captions"]["word_color"])
+    animation = brand["captions"]["animation_style"]
     arabic = meta["language"] == "ar"
     styles = [
         f"Style: Caption,{FONT},{f['FontSize']},{f['PrimaryColour']},&H000000FF,{f['OutlineColour']},"
@@ -200,10 +221,17 @@ def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertic
             t = place(x["start"], x["end"])
             if not t:
                 continue
-            if words and any(line["words"] for line in x["lines"]):
-                for a, b, lit in word_steps(x, lambda u: tmap(u) - w0, *t):
-                    text = "\\N".join(line_text(line, lit[1] if lit and lit[0] == i else None, colour)
-                                       for i, line in enumerate(x["lines"]))
+            timed_words = any(line["words"] for line in x["lines"])
+            if (animation in ("karaoke", "pop") or (animation == "default" and words)) and timed_words:
+                for a, b, lit in word_steps(x, lambda u: tmap(u) - w0, *t, hold_until_next=animation == "karaoke"):
+                    text = "\\N".join(
+                        line_text(line, lit[1] if lit and lit[0] == i else None, colour,
+                                  transition=animation == "karaoke",
+                                  base_colour=ass_bgr(brand["captions"]["text_color"]),
+                                  pop=animation == "pop" and lit is not None and lit[0] == i,
+                                  cumulative=animation == "karaoke",
+                                  full=animation == "karaoke" and lit is not None and i < lit[0] and bool(line.get("words")))
+                        for i, line in enumerate(x["lines"]))
                     events.append(f"Dialogue: 0,{ass_time(a)},{ass_time(b)},Caption,,0,0,0,,{text}")
             else:
                 events.append(f"Dialogue: 0,{ass_time(t[0])},{ass_time(t[1])},Caption,,0,0,0,,{ass_text(x['text'])}")
@@ -388,7 +416,7 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
     if langs != "none":                #caption times shifted so the clip starts at 0; 9:16 sizes scale with the height
         write_ass(session_dir, ass, langs=langs, vertical=fmt == "9:16", window=(start, end))
         vf.append(f"subtitles=tmp/{ass.name}")
-    ref = f"video/cam{meta['reference_cam']}.mp4"                                  #the sound of the reference camera
+    ref = soundtrack(session_dir)                                                  #the sound of the reference camera (bleeped when on)
     if shots:                          #one input per shot, joined in ONE FFmpeg run, then the captions on top
         cmd, parts, n = ["ffmpeg", "-y"], [], 0                 #n = inputs so far (a split shot has 2)
         for i, c in enumerate(shots):

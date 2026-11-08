@@ -22,6 +22,11 @@ captions:
 voice:
   clean: "highpass=f=80,afftdn=nr=12:nf=-25:tn=1,equalizer=f=3000:t=q:w=1.2:g=3,acompressor=threshold=-24dB:ratio=2.5:attack=15:release=250,atrim=start=0.025,asetpts=PTS-STARTPTS,apad=pad_dur=0.025"
 
+bleep:
+  hz: 1000
+  pad: 0.07
+  fade: 0.02
+
 pauses:
   cut: false
   min_pause: 1.5

@@ -1,0 +1,11 @@
+index,word,caption_start_s,listening_result,status
+1,عندك,26.60,On time (within ~150 ms),PASS
+2,10,27.30,On time (within ~150 ms),PASS
+3,بيتخرجوا,27.60,On time (within ~150 ms),PASS
+4,من,28.20,On time (within ~150 ms),PASS
+5,مثلا,28.40,On time (within ~150 ms),PASS
+6,كليه,28.70,On time (within ~150 ms),PASS
+7,وبيلاقوا,29.60,On time (within ~150 ms),PASS
+8,شغل,29.97,On time (within ~150 ms),PASS
+9,وال,30.34,On time (within ~150 ms),PASS
+10,market,30.71,On time (within ~150 ms),PASS

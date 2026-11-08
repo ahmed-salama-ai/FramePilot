@@ -69,7 +69,8 @@ plus a close-up camera for each seat.
   when Gemini is not available. Every video can show Arabic and English captions together.
 - **Readable captions.** One caption per line of speech (at most 5 seconds and 42 characters, split at sentence ends),
   never two captions on screen at once, short replies joined as dialogue lines, Arabic and mixed Arabic/English lines
-  in the right order, and the word being spoken lit up in clips.
+  in the right order, and the word being spoken lit up in clips. Listed swear words can be masked in SRT, VTT and
+  burned-in captions when profanity bleeping is on.
 - **Caption editor.** Fix any word in the browser. Word timings are kept, every save can be undone, and the original
   captions can be restored.
 - **One-language videos.** Download the video with Arabic and English captions, Arabic only, English only, or none.
@@ -79,6 +80,14 @@ plus a close-up camera for each seat.
 - **Loudness.** The full video and every clip are brought to -14 LUFS, the level YouTube and Spotify play at, with one
   fixed gain measured once per recording.
 - **Clean voice** (optional). Rumble removed, background noise reduced and voices made clearer.
+- **Profanity bleeping** (optional, off by default). An editable Egyptian Arabic and English wordlist
+  (`configs/profanity.txt`) is matched to transcript word times. Each hit becomes a 1 kHz beep that cross-fades with
+  the voice (no clicks) in the full video, clips, highlights, trailer, podcast MP3 and the Premiere/DaVinci export,
+  and the same words are masked with `***` in SRT, VTT and burned-in captions. Arabic spelling variants (diacritics,
+  alef forms, taa marbuta/haa, alef maqsura, tatweel, stretched letters) are normalised, and a listed word is also
+  caught with an attached start (ال، و، ف، ب، يا) or a feminine/plural ending (ة، ين، ات). Only whole words match:
+  everyday words that merely contain a listed word are left alone. See
+  [Profanity bleeping](#8-profanity-bleeping).
 
 ### Brand kit
 
@@ -122,8 +131,8 @@ A chat assistant on the results page, running locally on qwen3:8b with tool call
 
 ### Web app
 
-- **Upload** 2 to 4 cameras with the language, the wide camera, the names and roles of the people, an optional brand
-  kit, and a consent confirmation.
+- **Upload** 2 to 4 cameras with the language, the wide camera, the names and roles of the people, optional profanity
+  bleeping, an optional brand kit, and a consent confirmation.
 - **Progress** of the 8 stages with the place in the queue, a time estimate, a browser notification when the video is
   ready, and a retry button after a failure.
 - **Results studio:**
@@ -296,8 +305,9 @@ flowchart TB
 
 | File | Written by | Contents |
 |---|---|---|
-| `upload.json` | web app / you | name, language, wide camera, number of speakers, optional names |
-| `session.json` | Ingest | cameras, roles, sync offsets, duration |
+| `upload.json` | web app / you | name, language, wide camera, number of speakers, optional names, optional `bleep_profanity` |
+| `audio_bleeped.wav` | Audio | soundtrack with listed swear words replaced by a beep (only when bleeping is on and something matched) |
+| `session.json` | Ingest | cameras, roles, sync offsets, duration, optional `bleep_profanity` |
 | `video/camN.mp4`, `audio.wav` | Ingest | synced camera copies, 16 kHz mono audio |
 | `speech.json` | Audio | where someone is speaking (voice activity) |
 | `transcript.json`, `diarization.json` | Audio | rows with word times and translation, who talks when |
@@ -329,7 +339,7 @@ FramePilot/
 ├── ai_director/
 │   ├── common/       shared helpers, file names, data contracts, session checker
 │   ├── ingest/       probing, audio sync, synced camera copies
-│   ├── audio/        voice activity, transcription, speakers, translation, captions, laughter, caption editing
+│   ├── audio/        voice activity, transcription, speakers, translation, captions, laughter, caption editing, profanity bleeping
 │   ├── perception/   people (YOLO pose), faces and mouths (MediaPipe), speaker to camera matching
 │   ├── brain/        scene modes from the vision-language model
 │   ├── director/     scorer, switcher, split screen, render, pauses, zoom, cold open, name cards, brand, exports
@@ -337,7 +347,7 @@ FramePilot/
 │   ├── agent/        Editor Agent: chat loop, tools, transcript search
 │   └── pipeline.py   runs the stages in order
 ├── app/              FastAPI web app: pages, static files, background worker, SQLite database
-├── configs/          default.yaml (all settings), modes.yaml (score multipliers per scene mode)
+├── configs/          default.yaml (all settings), modes.yaml (score multipliers), profanity.txt (bleep wordlist)
 ├── eval/             evaluation stage: speaker coverage, agreement with a human edit, highlight precision
 ├── samples/mock_s00/ a small fake session with every contract file, used by the tests
 ├── tests/            pytest suite
@@ -453,6 +463,51 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000), create a new project, uploa
 wide camera and the language, and follow the progress. The web server handles the pages; the worker runs the
 pipeline and the other long jobs one at a time.
 
+### 7. Import from Direct Links or Google Drive
+
+FramePilot supports importing multi-camera video recordings directly from Google Drive share links, public folders, or direct HTTP/HTTPS video URLs:
+
+1. Open [http://127.0.0.1:8000/new](http://127.0.0.1:8000/new).
+2. Click the `+` action button next to the link input:
+   - Select **Attach a file from computer** to upload local videos.
+   - Select **Import from Link or Google Drive** and paste single video links or a public Google Drive folder URL (`https://drive.google.com/drive/folders/...`).
+3. Press **⚡ Import Link**. All camera recordings will be inspected and listed with interactive controls:
+   - **Re-order cameras:** Use `▲` and `▼` to set Camera 1, 2, 3 priority.
+   - **Quick preview:** Click `👁 Preview` to verify camera angles and audio before starting.
+   - **Google Drive tip:** Ensure the shared folder/file access is set to **"Anyone with the link" &rarr; "Viewer"** (not Editor) so files can be downloaded without sign-in.
+4. Select the Wide Camera and click **Upload & Start AI Directing**. Videos are streamed directly to disk in 128 KB chunks with zero RAM buffering, validated with `ffprobe`, and protected by multi-hop SSRF security checks.
+
+#### Testing the Link Downloader
+Run the test suite to verify SSRF protection, URL parsing, and file streaming:
+```bash
+pytest tests/test_downloader.py tests/test_web.py -k "import or ssrf or downloader"
+```
+
+### 8. Profanity bleeping
+
+1. Tick **Bleep profanity** on the upload page (or add `"bleep_profanity": true` to `upload.json`). It is off by
+   default and is set per recording.
+2. The words come from `configs/profanity.txt`, one word or phrase per line, `#` for comments. A `profanity.txt` in a
+   session folder is used instead of it for that recording only.
+3. List the base form only: `غبي` also catches `الغبي`, `ياغبي`, `غبية`, `غبيات`, and spelling variants such as `غبى` or
+   `غـبـي`. Egyptian sound changes are not guessed, so add them as their own lines (`قليل الأدب` and `أليل الأدب`).
+4. Matching uses the transcript's word times: each hit is padded by `bleep.pad` (70 ms) on both sides, the voice fades
+   out and the beep fades in over `bleep.fade` (20 ms), so the word itself is fully covered. The video and the sound
+   keep their length, so nothing moves out of sync.
+
+Test it:
+
+```bash
+pytest tests/test_bleep.py tests/test_export.py
+```
+
+To try it on a real recording without swear words in it, put a few ordinary words that are said in that recording in
+the session's `profanity.txt`, turn bleeping on and run the pipeline: those words beep in the video and show as `***`
+in the captions.
+
+Known limits: a listed word is bleeped whatever it means in context (`حمار` is also the animal); English plurals
+(`idiots`) are not caught unless listed; a translated caption is only masked if its English word is listed too.
+
 ### Or use the command line
 
 Create a session folder with the camera files and an `upload.json`:
@@ -546,6 +601,7 @@ The most useful ones:
 | `audio` | `chunk_seconds` | `0` | `0` sends the whole recording in one request (up to 30 minutes); `60` sends one-minute pieces |
 | `audio` | `segment_max_seconds`, `segment_max_chars` | `5`, `42` | the longest caption |
 | `audio` | `translate_model`, `speaker_model`, `english_words_model` | Gemini models | cloud models; `null` uses the local model instead (translation) or turns the step off (English words) |
+| `bleep` | `hz`, `pad`, `fade` | `1000`, `0.07`, `0.02` | beep pitch, extra time around each matched word, fade at each beep edge. The wordlist is `configs/profanity.txt` (or `profanity.txt` in the session folder). Turned on per recording with `bleep_profanity` at upload |
 | `ollama` | `text_model`, `vision_model`, `embed_model` | `qwen3:8b`, `qwen3-vl:4b-instruct`, `bge-m3` | local models |
 | `brain` | `every_seconds` | `5` | one scene label every 5 seconds |
 | `agent` | `max_clips`, `clip_seconds`, `timeout` | `3`, `[5, 180]`, `120` | clips per request, allowed clip length, seconds before an LLM request gives up |
@@ -567,7 +623,7 @@ Everything is saved inside the session folder and can be downloaded from the res
 | Thumbnails, 1280x720, Arabic and English | `thumbnails/` |
 | Publish kit and blog article | `publish.json` |
 | Podcast MP3 with chapters | `export/` |
-| Premiere Pro / DaVinci Resolve package (XML, EDL, captions) | `export/` |
+| Premiere Pro / DaVinci Resolve package (XML, EDL, captions; the bleeped sound when bleeping is on) | `export/` |
 
 ## Results
 

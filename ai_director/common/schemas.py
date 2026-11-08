@@ -29,6 +29,7 @@ class Upload(BaseModel):                      # upload.json (web app → ingest)
     people: list[Person] = []                 # names typed at upload; speakers.py matches them to the
                                               # voices -> speakers.json (name_source "user") -> name cards
     style: Style | None = None                # None = no style chosen: default.yaml as it is (= Balanced)
+    bleep_profanity: bool = False             # replace listed swear words with a beep in the video and clips
 
 
 class Camera(BaseModel):
@@ -46,6 +47,7 @@ class Session(BaseModel):                     # session.json (ingest)
     cameras: list[Camera]
     num_speakers: int | None = None
     speaker_names: dict[str, str] = {}
+    bleep_profanity: bool = False             # from upload.json; off unless the user turned it on
 
 
 class Span(BaseModel):                        # speech.json item
@@ -141,6 +143,7 @@ class CaptionStyle(BaseModel):                # brand.json -> captions
     box: bool = True                          # true = a box behind the text, false = an outline around the letters
     size: Literal["small", "medium", "large"] = "medium"
     word_color: str = "#FFD43B"               # the word being said (word-by-word captions, configs captions)
+    animation_style: Literal["default", "pop", "karaoke"] = "default"
 
     @field_validator("text_color", "box_color", "word_color")
     @classmethod

@@ -167,6 +167,10 @@ def process_job(job):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Starting Job #{job_id} ({kind}) for Session {sid}...")
 
     def on_progress(stage, pct):
+        # Check if user cancelled the job via UI
+        current = db.get_job(job_id)
+        if current and current.get("status") == "cancelled":
+            raise InterruptedError("Job was cancelled by the user.")
         print(f"  -> Job #{job_id} Stage: {stage} ({pct}%)")
         db.update_job(job_id, stage=stage, progress=pct, stage_started_at=datetime.now().isoformat())
 
@@ -203,6 +207,11 @@ def process_job(job):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Job #{job_id} finished successfully!")
 
     except Exception as e:
+        current = db.get_job(job_id)
+        if current and current.get("status") == "cancelled":
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Job #{job_id} cancelled by user. Stopped.")
+            return
+
         now_iso = datetime.now().isoformat()
         err_msg = f"{type(e).__name__}: {str(e)}\n\n{traceback.format_exc()}"
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Job #{job_id} FAILED: {str(e)}")

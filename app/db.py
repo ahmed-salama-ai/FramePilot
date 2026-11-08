@@ -330,6 +330,18 @@ def retry_job(job_id):
         return cur.rowcount == 1
 
 
+def cancel_job(job_id):
+    """Mark a queued or running job as cancelled by user."""
+    with conn() as c:
+        cur = c.execute(
+            """UPDATE jobs
+               SET status = 'cancelled', stage = 'Cancelled', error = 'Cancelled by user', finished_at = ?
+               WHERE id = ? AND status IN ('queued', 'running')""",
+            (datetime.now().isoformat(), job_id)
+        )
+        return cur.rowcount == 1
+
+
 def reset_running_jobs():
     """Called when the worker starts: a job still 'running' was cut off (worker closed, PC turned off).
     Mark it failed, so it can be retried and the Editor Agent is not blocked by 'GPU busy' forever."""

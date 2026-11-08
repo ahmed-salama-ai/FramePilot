@@ -66,7 +66,7 @@ if avatar_dir.is_dir():
     app.mount("/avatar", StaticFiles(directory=avatar_dir, html=True), name="avatar")
 
 templates = Jinja2Templates(directory=ROOT / "app" / "templates")
-templates.env.globals["static_version"] = "20261013b"
+templates.env.globals["static_version"] = "20261104d"
 
 # Initialize database on startup
 db.init()
@@ -230,7 +230,7 @@ def is_picture(path: Path) -> bool:
 
 async def save_brand(folder: Path, settings: str = "", logo=None, intro=None, outro=None, remove=(), music=None):
     """brand.json + brand/ files in a session folder (upload or the results page). settings = JSON text with any of
-    logo_corner, logo_size, captions {text_color, box_color, box, size, word_color}, clean_voice;
+    logo_corner, logo_size, captions {text_color, box_color, box, size, word_color, animation_style}, clean_voice;
     remove = ["logo", "intro", "outro", "music"]."""
     from pydantic import ValidationError
     from ai_director.common.schemas import Brand
@@ -290,40 +290,103 @@ async def save_brand(folder: Path, settings: str = "", logo=None, intro=None, ou
     return b
 
 
+class InspectLinkRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/import/inspect")
+async def api_inspect_link(req: InspectLinkRequest):
+    """Inspect a URL or Google Drive link/folder to preview videos before upload."""
+    from app.downloader import inspect_link, DownloadError
+    try:
+        data = await inspect_link(req.url)
+        return data
+    except DownloadError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"فشل فحص الرابط: {str(e)}")
+
+
 @app.post("/api/projects")
 async def create_project(
-    files: List[UploadFile] = File(...),
+    files: Optional[List[UploadFile]] = File(None),
+    links_json: str = Form("[]"),
+    items_order_json: str = Form("[]"),
     name: str = Form(...),
     language: str = Form("ar"),
     wide_cam: int = Form(1),
     num_speakers: Optional[int] = Form(None),
     consent: bool = Form(...),
     people_json: str = Form("[]"),
+    bleep_profanity: str = Form("false"),
     brand_json: str = Form(""),
     logo: Optional[UploadFile] = File(None),
     intro: Optional[UploadFile] = File(None),
     outro: Optional[UploadFile] = File(None),
     music: Optional[UploadFile] = File(None),
 ):
-    """Upload 2 to 4 camera videos (+ who is in them, + an optional brand kit), save metadata, create project & queue job."""
+    """Upload or import 2 to 4 camera videos (+ metadata + brand), create project & queue job."""
+    from app.downloader import stream_download_to_file, DownloadError
+
     if not consent:
         raise HTTPException(status_code=400, detail="Consent is required to process videos.")
-    if not (2 <= len(files) <= 4):
-        raise HTTPException(status_code=400, detail="Please upload between 2 and 4 video files.")
+
+    # Parse links_json (legacy & direct fallback)
+    links = []
+    try:
+        raw_links = json.loads(links_json or "[]")
+        for item in raw_links:
+            if isinstance(item, str) and item.strip():
+                links.append(item.strip())
+            elif isinstance(item, dict) and item.get("url"):
+                links.append(item["url"].strip())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="links_json must be valid JSON.")
+
+    # Filter uploaded files
+    valid_files = [f for f in (files or []) if getattr(f, "filename", None)]
+
+    # Parse items_order_json for unified camera ordering
+    ordered_items = []
+    try:
+        raw_order = json.loads(items_order_json or "[]")
+        if isinstance(raw_order, list):
+            for it in raw_order:
+                if isinstance(it, dict) and it.get("type"):
+                    ordered_items.append(it)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="items_order_json must be valid JSON.")
+
+    # Fallback to legacy ordering (files first, then links) if items_order_json was not provided
+    if not ordered_items:
+        for idx in range(len(valid_files)):
+            ordered_items.append({"type": "file", "index": idx})
+        for link_url in links:
+            ordered_items.append({"type": "link", "url": link_url})
+
+    total_cameras = len(ordered_items)
+
+    if not (2 <= total_cameras <= 4):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Please provide between 2 and 4 camera videos (found {total_cameras})."
+        )
     if not name.strip():
         raise HTTPException(status_code=400, detail="Project name cannot be empty.")
     if language not in {"ar", "en"}:
         raise HTTPException(status_code=400, detail="Language must be 'ar' or 'en'.")
-    if not 1 <= wide_cam <= len(files):
-        raise HTTPException(status_code=400, detail="Wide camera must match one of the uploaded videos.")
+    if not 1 <= wide_cam <= total_cameras:
+        raise HTTPException(status_code=400, detail="Wide camera must match one of the camera videos.")
     if num_speakers is not None and num_speakers < 1:
         raise HTTPException(status_code=400, detail="Number of speakers must be positive.")
-    for file in files:
+
+    for file in valid_files:
         if Path(file.filename or "").suffix.lower() not in VIDEO_EXTENSIONS:
             raise HTTPException(status_code=400, detail="Please upload video files only (MP4, MOV, MKV, AVI).")
+
     people = parse_people(people_json)
     if num_speakers is None and people:
-        num_speakers = len(people)              # helps the speech step tell the voices apart
+        num_speakers = len(people)
 
     sid = db.new_session_id()
     session_dir = DATA_DIR / sid
@@ -333,8 +396,30 @@ async def create_project(
         raw_dir = staging_dir / "raw"
         raw_dir.mkdir(parents=True)
 
-        for i, file in enumerate(files, 1):
-            await write_upload(file, raw_dir / f"cam{i}.mp4", MAX_VIDEO_BYTES, f"Video {i}")   # FFmpeg reads the content
+        # Process each camera in exact user-defined order
+        for cam_idx, item in enumerate(ordered_items, start=1):
+            target_cam = raw_dir / f"cam{cam_idx}.mp4"
+            item_type = item.get("type")
+            if item_type == "file":
+                f_idx = item.get("index", item.get("file_index", 0))
+                if 0 <= f_idx < len(valid_files):
+                    await write_upload(valid_files[f_idx], target_cam, MAX_VIDEO_BYTES, f"Video {cam_idx}")
+                else:
+                    raise HTTPException(status_code=400, detail=f"Referenced file index {f_idx} is out of bounds.")
+            elif item_type == "link":
+                link_url = item.get("url")
+                if not link_url:
+                    raise HTTPException(status_code=400, detail=f"Missing link URL for Camera {cam_idx}.")
+                try:
+                    await stream_download_to_file(link_url, target_cam, MAX_VIDEO_BYTES)
+                except DownloadError as de:
+                    raise HTTPException(status_code=de.status_code, detail=de.message)
+                except Exception as e:
+                    logger.error(f"Download failed for {link_url}: {e}")
+                    raise HTTPException(status_code=400, detail=f"Download failed for video link: {str(e).splitlines()[0]}")
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported item type: {item_type}")
+
         if brand_json or any(f and getattr(f, "filename", "") for f in (logo, intro, outro, music)):
             await save_brand(staging_dir, brand_json, logo, intro, outro, music=music)
 
@@ -344,18 +429,20 @@ async def create_project(
             "wide_cam": wide_cam,
             "num_speakers": num_speakers,
             "speaker_names": {},
-            "people": people
+            "people": people,
+            "bleep_profanity": str(bleep_profanity).strip().lower() in {"1", "true", "on", "yes"},
         }
         (staging_dir / "upload.json").write_text(
             json.dumps(upload_data, ensure_ascii=False, indent=2),
             encoding="utf-8"
         )
 
-        try:                                                     # the video's length, for the time estimate
+        try:
             from ai_director.ingest.probe import probe
             seconds = probe(staging_dir / "raw" / "cam1.mp4")["duration"]
         except Exception:
             seconds = None
+
         staging_dir.rename(session_dir)
         consent_timestamp = datetime.now().isoformat()
         db.create_project(
@@ -363,16 +450,21 @@ async def create_project(
             name=name.strip(),
             language=language,
             wide_cam=wide_cam,
-            num_cameras=len(files),
+            num_cameras=total_cameras,
             consent_at=consent_timestamp,
             duration=seconds
         )
         job_id = db.create_job(sid)
         committed = True
+    except HTTPException:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        if session_dir.exists() and not committed:
+            shutil.rmtree(session_dir, ignore_errors=True)
+        raise
     except Exception:
         shutil.rmtree(staging_dir, ignore_errors=True)
         if session_dir.exists() and not committed:
-            shutil.rmtree(session_dir, ignore_errors=True)       # a half-made upload: nothing worth keeping
+            shutil.rmtree(session_dir, ignore_errors=True)
             db.forget_project(sid)
         raise
 
@@ -405,6 +497,18 @@ def retry_job(job_id: int):
     if not db.retry_job(job_id):
         raise HTTPException(status_code=409, detail="Only failed jobs can be retried.")
     return {"job_id": job_id, "status": "queued"}
+
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: int):
+    """Cancel a queued or running job."""
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] not in ("queued", "running"):
+        raise HTTPException(status_code=409, detail="Only queued or running jobs can be cancelled.")
+    if not db.cancel_job(job_id):
+        raise HTTPException(status_code=500, detail="Failed to cancel job.")
+    return {"job_id": job_id, "status": "cancelled"}
 
 @app.get("/api/sessions/{sid}")
 def get_session_data(sid: str):
