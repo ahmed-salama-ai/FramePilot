@@ -8,7 +8,7 @@ FFMPEG = shutil.which("ffmpeg")
 
 from ai_director.audio.bleep import (
     bleep_enabled, load_phrases, mask_text, match_tokens, match_transcript,
-    mix_bleeps, normalize, pad_spans, soundtrack, write_bleeped_audio,
+    mix_bleeps, normalize, pad_spans, session_phrases, soundtrack, write_bleeped_audio,
 )
 from ai_director.audio.subtitles import caption_items, write_all_captions
 from ai_director.common.io import write_json
@@ -194,6 +194,37 @@ def test_captions_mask_when_on_and_keep_words_when_off(tmp_path):
     write_all_captions(s2)
     assert "أهبل" in (s2 / "captions_ar.srt").read_text(encoding="utf-8")
     assert not bleep_enabled(s2)
+
+
+def test_words_typed_at_upload_are_added_to_the_list(tmp_path):
+    s = session_with_swear(tmp_path, on=True)
+    write_json(s / "upload.json", {"name": "t", "language": "ar", "wide_cam": 1, "bleep_profanity": True,
+                                   "bleep_words": ["مُعَلِّم", "قليل الأدب"]})
+    phrases = session_phrases(s)
+    assert ["معلم"] in phrases and ["idiot"] in phrases                  # typed words + the standard list
+    assert phrases.count(["قليل", "الادب"]) == 1                          # already listed: not twice
+    write_all_captions(s)
+    assert "ده **** يا ****" in (s / "captions_ar.srt").read_text(encoding="utf-8")   # أهبل + the typed معلم
+
+
+def test_the_soundtrack_bleeps_the_typed_words_too(tmp_path, monkeypatch):
+    s = session_with_swear(tmp_path, on=True)
+    write_json(s / "upload.json", {"name": "t", "language": "ar", "wide_cam": 1, "bleep_profanity": True,
+                                   "bleep_words": ["معلم"]})
+    (s / "audio.wav").write_bytes(b"x")
+    mixed = []
+    monkeypatch.setattr("ai_director.audio.bleep.media_duration", lambda p: 5.0)
+    monkeypatch.setattr("ai_director.audio.bleep.mix_bleeps", lambda src, dst, spans: mixed.append(spans) or dst)
+    write_bleeped_audio(s)
+    assert mixed == [[(1.33, 2.07), (2.23, 3.07)]]                       # أهبل (the list) and معلم (typed)
+
+
+def test_typed_words_change_nothing_when_bleeping_is_off(tmp_path):
+    s = session_with_swear(tmp_path, on=False)
+    write_json(s / "upload.json", {"name": "t", "language": "ar", "wide_cam": 1, "bleep_profanity": False,
+                                   "bleep_words": ["معلم"]})
+    write_all_captions(s)
+    assert "ده أهبل يا معلم" in (s / "captions_ar.srt").read_text(encoding="utf-8")
 
 
 def test_burned_in_ass_masks_the_same_words(tmp_path):

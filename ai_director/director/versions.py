@@ -101,8 +101,9 @@ def version_captions(session_dir, version, langs="ar", fmt="srt"):
     """The captions as SRT / VTT text timed for this version's finished video (the session's
     captions_*.srt are in the cameras' time; with a brand intro or cut pauses they would be early)."""
     from ai_director.audio.subtitles import caption_items, ts
+    from ai_director.director.filler_cuts import drop_cut_words
     items = []
-    for x in caption_items(Path(session_dir), langs):
+    for x in drop_cut_words(caption_items(Path(session_dir), langs), version.get("removed")):
         a, b = video_time(version, x["start"]), video_time(version, x["end"])
         if b - a >= 0.05:
             items.append((a, b, x["text"]))

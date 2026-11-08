@@ -6,7 +6,7 @@ import pandas as pd
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..common.io import read_json, read_jsonl, write_json
-from ..director.pauses import plan_pauses
+from ..director.filler_cuts import plan_removed
 from ..director.render import add_captions, lead_in, render_clip, render_program
 from ..director.run import decide, make_cuts
 from ..director.versions import add_version, new_version
@@ -421,8 +421,8 @@ def restyle_video(job, a: RestyleArgs):
         return {"file": "versions/v2/program.mp4", "version": "v2", "note": "test run: nothing rendered"}
     v = new_version(job.s, "agent", ", ".join(what))                   # versions/vN/: nothing is overwritten
     cuts = make_cuts(job.s, boost={"cam": cam, "factor": 1.4} if cam else None, force_mode=a.mode, out=v["cuts"])
-    removed = plan_pauses(job.s, cuts)                                  # [] unless configs pauses.cut is on
-    render_program(job.s, cuts, out=v["nocaps"], removed=removed)
+    removed, shots = plan_removed(job.s, cuts)          # long pauses + fillers, as chosen at upload ([] = nothing)
+    render_program(job.s, shots, out=v["nocaps"], removed=removed, fitted=True)
     add_captions(job.s, v["nocaps"], v["program"], cuts, clean=v["clean"], removed=removed)
     cold, lead = lead_in(job.s, removed)
     add_version(job.s, {**v, "intro": lead, "removed": removed, "cold_open": list(cold) if cold else None})

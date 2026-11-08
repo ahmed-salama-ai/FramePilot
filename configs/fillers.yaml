@@ -1,0 +1,129 @@
+# Modes:
+#   off           removes nothing
+#   conservative  removes the `hesitation` entries only
+#   standard      removes `hesitation` + `discourse` entries
+# `never` lists words that are never removed (they usually carry meaning); they are only counted, for review.
+#
+# Every entry:
+#   words    spellings or phrases, one per item. Arabic spelling variants and English case and punctuation are matched automatically.
+#   meaning  what it means, for the people reviewing the list
+#   only     extra conditions, all of which must hold for the word to be removed:
+#              stretched: true     the written word repeats a letter (همم, اييييه): plain "هم" (they) and
+#                                  "ايه" (what) never match
+#              phrase_start: true  only as the first word of a phrase
+#              phrase_end: true    only as the last word of a phrase (a pause after it, or the line ends)
+#              not_phrase_end: true  never as the last word of a sentence ("... دول يعني." adds emphasis there)
+#              not_turn_start: true  never as the first word someone says after another speaker (a reply:
+#                                  "اه" there usually means "yes")
+#              not_after: [...]    never right after one of these words ("كلية طب" = medicine)
+#              not_before: [...]   never right before one of these words ("اه طبعا" = "yes of course")
+#              no_pause_needed: true  removed even inside a phrase with no pause around it (the rest of the rules
+#                                  still apply). Only for words that are fillers almost every time they are said
+#
+# rule: what "short and isolated" means. Discourse words must be both; hesitation sounds only need their `only`.
+#   max_seconds   a discourse word said for longer than this is kept (said on purpose); per word, so a two-word
+#                 phrase may take twice as long
+#   pause         a silence of at least this many seconds before or after the word makes it isolated
+#   phrase_start  the first word of a phrase counts as isolated too. A phrase starts at the beginning of a line,
+#                 after . ? ! ، , or right after another filler ("um, so ...")
+#   keep_questions  true: a word written with a question mark (يعني؟) is never removed
+rule:
+  max_seconds: 0.5
+  pause: 0.15
+  phrase_start: true
+
+# cut: how a chosen filler is cut out of the video (director/filler_cuts.py)
+#   edge_search  each cut edge moves to the quietest 10 ms within this many seconds of the word's edge (the word
+#                timings are only about 0.1 s accurate)
+#   move_max     a camera change at most this many seconds away moves into the cut and hides it. Further moves show
+#                the wrong person: on s01, with 2 s allowed, 17 of 30 moved changes did (0.4-2.1 s each)
+#   jump_max     on the same camera the cut stays only if the picture changes this little (0 = the same frame).
+#                On s01 the picture changes 0.02 in 0.3 s of a normal shot (0.06 for the 95th percentile) and
+#                0.21-0.25 at a camera change; above jump_max the filler is kept, because the jump would show
+#   min_cut      shorter cuts are not worth it (seconds)
+#   crossfade    the sound on both sides of every cut crossfades over this many seconds (no clicks)
+cut:
+  edge_search: 0.06
+  move_max: 0.5
+  jump_max: 0.06
+  min_cut: 0.05
+  crossfade: 0.025
+
+hesitation:
+  - id: ah
+    words: ["اه", "آه", "أه"]
+    meaning: "ah (hesitating); in Egyptian Arabic it often means 'yes', and that one stays"
+    only: {not_turn_start: true, not_before: ["طبعا", "صح", "فعلا", "اكيد", "ايوه", "تمام", "كده", "والله"]}
+  - id: umm
+    words: ["امم", "إمم", "ممم"]
+    meaning: "umm"
+    only: {stretched: true}
+  - id: hmm
+    words: ["همم", "هممم"]
+    meaning: "hmm (plain هم means 'they')"
+    only: {stretched: true}
+  - id: aaa
+    words: ["أأأ", "إإإ", "ااا"]
+    meaning: "uhh, drawn out"
+  - id: eeh
+    words: ["اييييه"]
+    meaning: "ehh, stretched (plain ايه means 'what')"
+    only: {stretched: true}
+  - id: en-hesitation
+    words: ["um", "umm", "uh", "uhm", "er", "erm", "hmm", "ah", "eh"]
+    meaning: "English hesitation sounds"
+
+discourse:
+  - id: yani
+    words: ["يعني"]
+    meaning: "I mean / like; not at the end of a sentence, where it adds emphasis. Inside a phrase it was a filler
+      13 times out of 13 (s01, s03), so it needs no pause"
+    only: {not_phrase_end: true, no_pause_needed: true}
+  - id: masalan
+    words: ["مثلا"]
+    meaning: "for example, said as padding; inside a phrase it was a filler 8 times out of 9 (s01, s03)"
+    only: {no_pause_needed: true}
+  - id: tayeb
+    words: ["طيب", "طب"]
+    meaning: "okay / so; not 'كلية طب' (medicine)"
+    only: {not_after: ["كلية", "كليات", "دكتور", "دكتورة", "دراسة", "بتاع", "بتاعة"]}
+  - id: keda
+    words: ["كده"]
+    meaning: "like this; only at the end of a phrase, and not 'شبه كده' / 'زي كده' (like that)"
+    only: {phrase_end: true, not_after: ["شبه", "زي"]}
+  - id: ba2a
+    words: ["بقى"]
+    meaning: "so / then; inside a phrase it was a filler 4 times out of 5 (s01, s03)"
+    only: {no_pause_needed: true}
+  - id: elly-howa
+    words: ["اللي هو", "اللي هي"]
+    meaning: "which is"
+  - id: asln
+    words: ["أصلا"]
+    meaning: "actually, said as padding (s01 + s03: 4 of 4 were fillers)"
+  - id: bos
+    words: ["بص", "بصي", "بصوا"]
+    meaning: "look"
+  - id: ya3am
+    words: ["يا عم", "يا سيدي"]
+    meaning: "man / my friend"
+  - id: shoof
+    words: ["شوف"]
+    meaning: "see"
+  - id: en-discourse
+    words: ["like", "you know", "i mean", "basically"]
+    meaning: "English discourse fillers; not 'I like', 'like this'"
+    only: {not_after: ["i", "you", "we", "they", "would", "do", "don't", "feel", "looks", "look", "sounds", "seems", "just"],
+           not_before: ["this", "that", "these", "those", "it", "him", "her", "them", "to"]}
+  - id: en-openers
+    words: ["so", "well"]
+    meaning: "English sentence openers"
+    only: {phrase_start: true}
+
+never:
+  - id: yani-eh
+    words: ["يعني ايه"]
+    meaning: "'what does it mean?': a real question (both in s01 were)"
+  - id: kept
+    words: ["ايه", "صح", "ماشي", "فعلا", "تمام", "والله", "خلاص"]
+    meaning: "usually carry meaning: what, right, okay, really, fine, I swear, done"
