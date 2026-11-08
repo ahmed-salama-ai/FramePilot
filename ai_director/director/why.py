@@ -60,9 +60,9 @@ def mode_in(scene, a, b):
     return max(set(modes), key=modes.count) if modes else "conversation"
 
 
-def explain(session_dir, cuts, removed=None):
+def explain(session_dir, cuts, removed=None, shots=None):
     """[{start, end, cam, split, code, en, ar}] for every shot of the cut list (removed = the version's cut pauses:
-    the punch-ins were chosen on the cut list fitted to them)."""
+    the punch-ins were chosen on the cut list fitted to them; shots = that fitted list as the render saved it)."""
     s = Path(session_dir)
     if not cuts:
         return []
@@ -87,7 +87,7 @@ def explain(session_dir, cuts, removed=None):
     try:
         from ai_director.director.pauses import fit_cuts
         from ai_director.director.zoom import zoom_plan
-        zooms = zoom_plan(s, fit_cuts(cuts, removed) if removed else cuts)
+        zooms = zoom_plan(s, shots if shots is not None else fit_cuts(cuts, removed) if removed else cuts)
     except Exception:
         zooms = {}
     out = []

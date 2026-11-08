@@ -423,9 +423,13 @@ def restyle_video(job, a: RestyleArgs):
     cuts = make_cuts(job.s, boost={"cam": cam, "factor": 1.4} if cam else None, force_mode=a.mode, out=v["cuts"])
     removed, shots = plan_removed(job.s, cuts)          # long pauses + fillers, as chosen at upload ([] = nothing)
     render_program(job.s, shots, out=v["nocaps"], removed=removed, fitted=True)
+    shots_file = str(Path(v["cuts"]).with_name("shots.json").as_posix()) if removed else ""
+    if shots_file:                                      # the export and "why this shot" use these exact shots
+        write_json(job.s / shots_file, shots)
     add_captions(job.s, v["nocaps"], v["program"], cuts, clean=v["clean"], removed=removed)
     cold, lead = lead_in(job.s, removed)
-    add_version(job.s, {**v, "intro": lead, "removed": removed, "cold_open": list(cold) if cold else None})
+    add_version(job.s, {**v, "intro": lead, "removed": removed, "cold_open": list(cold) if cold else None,
+                        "shots": shots_file})
     return {"file": v["program"], "version": v["id"], "shots": len(cuts),
             "note": f"a new version ({v['id']}) of the whole video; every earlier version is kept"}
 

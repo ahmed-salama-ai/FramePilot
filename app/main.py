@@ -965,7 +965,8 @@ def why_this_shot(sid: str, vid: str):
     session_dir = check_sid(sid)
     v = version_or_400(session_dir, vid)
     cuts = read_json_file(session_dir / v["cuts"]) or []
-    return explain(session_dir, cuts, v.get("removed"))
+    shots = read_json_file(session_dir / v["shots"]) if v.get("shots") else None    # as the render moved them
+    return explain(session_dir, cuts, v.get("removed"), shots=shots)
 
 @app.get("/api/sessions/{sid}/search")
 def search_video(sid: str, q: str = "", mode: str = "words"):

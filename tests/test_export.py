@@ -8,7 +8,8 @@ import pytest
 from ai_director.common.io import read_json, write_json
 from ai_director.common.paths import MOCK
 from ai_director.director.export import edl, export_package, fcp_xml, frames, timecode
-from ai_director.director.versions import add_version, delete_version, get_version, list_versions, new_version
+from ai_director.director.versions import (add_version, delete_version, get_version, list_versions, new_version,
+                                           version_shots)
 from ai_director.highlights.publish import Answer, clean_chapters, make_publish
 
 
@@ -83,6 +84,28 @@ def test_export_sound_follows_the_bleep_switch(s):
     assert all(lines[k + 1] == "* FROM CLIP NAME: audio_bleeped.wav" for k in sound_events)
     readme = zipfile.ZipFile(export_package(s, "v1")).read("README.txt").decode()
     assert "audio_bleeped.wav" in readme and "listed words bleeped" in readme
+
+
+def test_export_uses_the_shots_the_video_was_made_from(s):
+    removed = [[14.0, 14.3]]                     # a cut filler 1.2 s after the 12.8 s camera change (too far to move)
+    write_json(s / "shots.json", read_json(s / "cuts.json"))                       # the render left the change at 12.8
+    add_version(s, {**get_version(s, "v1"), "removed": removed, "shots": "shots.json"})
+
+    def cam2_end(zip_path):
+        xml = zipfile.ZipFile(zip_path).read("s00_v1.xml").decode()
+        items = ET.fromstring(xml.split("\n", 2)[2]).findall("./sequence/media/video/track/clipitem")
+        return next(int(i.find("end").text) for i in items if i.find("start").text == str(frames(3.0)))
+
+    assert cam2_end(export_package(s, "v1")) == frames(12.8)                      # as in the video
+    write_json(s / "versions.json", [{**get_version(s, "v1"), "shots": ""}])       # an older version: no saved shots
+    assert cam2_end(export_package(s, "v1")) == frames(14.0)                      # its pauses re-fitted, as before
+    assert version_shots(s, get_version(s, "v1"))[1]["end"] == 14.2
+
+
+def test_an_update_keeps_its_bases_shots(s):
+    base = {**get_version(s, "v1"), "removed": [[14.0, 14.3]], "shots": "shots.json"}
+    assert new_version(s, "update", base=base)["shots"] == "shots.json"
+    assert new_version(s, "agent")["shots"] == ""
 
 
 def test_versions(s, tmp_path):

@@ -6,8 +6,19 @@ from ai_director.common.io import read_json, write_json
 
 V1 = {"id": "v1", "made_by": "pipeline", "note": "", "created": "", "cuts": "cuts.json",
       "nocaps": "program_nocaps.mp4", "program": "program.mp4", "clean": "program_clean.mp4", "intro": 0.0,
-      "removed": [], "cold_open": None}
-DEFAULTS = {"clean": "", "intro": 0.0, "removed": [], "cold_open": None}       # fields older versions don't have
+      "removed": [], "cold_open": None, "shots": ""}
+DEFAULTS = {"clean": "", "intro": 0.0, "removed": [], "cold_open": None, "shots": ""}   # fields older versions don't have
+
+
+def version_shots(session_dir, version):
+    """The shots exactly as this version's video shows them: its cut list with the camera changes moved into the cut
+    pieces, as the render saved it (`shots`). A version without one re-fits its pauses, which gives the same list."""
+    from ai_director.director.pauses import fit_cuts
+    s = Path(session_dir)
+    if version.get("shots") and (s / version["shots"]).exists():
+        return read_json(s / version["shots"])
+    cuts = read_json(s / version["cuts"])
+    return fit_cuts(cuts, version["removed"]) if version.get("removed") else cuts
 
 
 def list_versions(session_dir):
@@ -50,7 +61,8 @@ def new_version(session_dir, made_by, note="", base=None):
             "cuts": base["cuts"] if base else f"{folder}/cuts.json",
             "nocaps": base["nocaps"] if base else f"{folder}/program_nocaps.mp4",
             "program": f"{folder}/program.mp4", "clean": f"{folder}/program_clean.mp4", "intro": 0.0,
-            "removed": list((base or {}).get("removed") or []), "cold_open": None}
+            "removed": list((base or {}).get("removed") or []), "cold_open": None,
+            "shots": (base or {}).get("shots") or ""}
 
 
 def add_version(session_dir, version):

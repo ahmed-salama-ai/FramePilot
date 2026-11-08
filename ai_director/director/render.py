@@ -7,7 +7,7 @@ import yaml
 
 from ai_director.audio.bleep import soundtrack
 from ai_director.audio.fillers import load_fillers
-from ai_director.common.io import h264, quality, read_json, run, session_from_argv   # h264(): GPU or CPU, 8-bit
+from ai_director.common.io import h264, quality, read_json, run, session_from_argv, write_json   # h264(): GPU or CPU
 from ai_director.common.paths import CONFIGS
 from ai_director.director.brand import caption_fields, load_brand, logo_overlay
 from ai_director.director.cards import name_cards
@@ -494,9 +494,14 @@ if __name__ == "__main__":
     cuts = read_json(s / "cuts.json")
     removed, shots = plan_removed(s, cuts)             #long pauses + fillers, as chosen at upload ([] = nothing)
     render_program(s, shots, removed=removed, fitted=True)
+    if removed:                                        #the export and "why this shot" use these exact shots
+        write_json(s / "shots.json", shots)
+    else:
+        (s / "shots.json").unlink(missing_ok=True)
     cold, lead = lead_in(s, removed)
     if lead or removed or (s / "versions.json").exists():
-        add_version(s, {**V1, "intro": lead, "removed": removed, "cold_open": list(cold) if cold else None})
+        add_version(s, {**V1, "intro": lead, "removed": removed, "cold_open": list(cold) if cold else None,
+                        "shots": "shots.json" if removed else ""})
     cards = finish(s, cuts=cuts, clean="program_clean.mp4", removed=removed)   #program.mp4
     fillers = read_json(s / REPORT) if (s / REPORT).exists() else None
     print(f"done: {s / 'program.mp4'} + program_clean.mp4 (no captions)" + (f", {cards} name cards" if cards else "")

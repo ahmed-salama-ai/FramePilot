@@ -7,7 +7,7 @@ from ai_director.audio.bleep import media_duration, soundtrack
 from ai_director.common.io import read_json, session_from_argv
 from ai_director.common.paths import AUDIO_BLEEPED
 from ai_director.director.pauses import fit_cuts, keep_parts, out_time
-from ai_director.director.versions import get_version, version_captions
+from ai_director.director.versions import get_version, version_captions, version_shots
 from ai_director.ingest.probe import probe
 
 FPS = 30
@@ -96,15 +96,16 @@ def clipitem(n, files, cam, a, b, enabled=True, audio_track=None, src=None):
             f"<in>{i}</in><out>{o}</out>{files.xml(cam)}{track}</clipitem>")
 
 
-def pieces(cuts, removed):
-    """The cut list as timeline pieces"""
+def pieces(cuts, removed, fitted=False):
+    """The cut list as timeline pieces. fitted = the camera changes are already moved into the removed pieces (the
+    version's shots, exactly as its video shows them)."""
     if not removed:
         return [(c, c["start"], c["end"], c["start"], c["end"]) for c in cuts]
     return [(c, a, b, out_time(a, removed), out_time(a, removed) + b - a)
-            for c in fit_cuts(cuts, removed) for a, b in keep_parts(c["start"], c["end"], removed)]
+            for c in (cuts if fitted else fit_cuts(cuts, removed)) for a, b in keep_parts(c["start"], c["end"], removed)]
 
 
-def fcp_xml(s, cuts, name, removed=None):
+def fcp_xml(s, cuts, name, removed=None, fitted=False):
     """Final Cut Pro 7 XML of cut list"""
     s = Path(s)
     meta = read_json(s / "session.json")
@@ -113,7 +114,7 @@ def fcp_xml(s, cuts, name, removed=None):
     size = probe(s / f"video/cam{ref}.mp4")
     total = frames(out_time(cuts[-1]["end"], removed))
     v1, v2, markers, n = [], [], [], 0
-    for c, sa, sb, ra, rb in pieces(cuts, removed):
+    for c, sa, sb, ra, rb in pieces(cuts, removed, fitted):
         a, b = frames(ra), frames(rb)
         src = (frames(sa), frames(sa) + b - a)
         if b <= a:
@@ -149,11 +150,11 @@ def fcp_xml(s, cuts, name, removed=None):
             f"</format>{track(audio[:half])}{track(audio[half:])}</audio></media>{''.join(markers)}</sequence></xmeml>\n")
 
 
-def edl(s, cuts, name, removed=None):
+def edl(s, cuts, name, removed=None, fitted=False):
     """CMX3600 EDL"""
     ref = read_json(Path(s) / "session.json")["reference_cam"]
     lines, k = [f"TITLE: {name}", "FCM: NON-DROP FRAME", ""], 0
-    for c, sa, sb, ra, rb in pieces(cuts, removed):
+    for c, sa, sb, ra, rb in pieces(cuts, removed, fitted):
         a, b = frames(ra), frames(rb)
         i = frames(sa)
         if b <= a:
@@ -178,7 +179,7 @@ def export_package(session_dir, vid="v1"):
     """export/<session>_<version>_premiere_davinci.zip (XML + EDL + captions + README). Returns its path."""
     s = Path(session_dir)
     v = get_version(s, vid)
-    cuts = read_json(s / v["cuts"])
+    cuts = version_shots(s, v)                                  #the shots exactly as this version's video shows them
     name = f"{s.name}_{vid}"
     out = s / "export" / f"{name}_premiere_davinci.zip"
     out.parent.mkdir(exist_ok=True)
@@ -189,8 +190,8 @@ def export_package(session_dir, vid="v1"):
         media.append(f"  {(s / AUDIO_BLEEPED).resolve()}  (the sound: cam{ref} with the listed words bleeped)")
     removed = v.get("removed") or []
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(f"{name}.xml", fcp_xml(s, cuts, f"FramePilot {name}", removed))
-        z.writestr(f"{name}.edl", edl(s, cuts, f"FramePilot {name}", removed))
+        z.writestr(f"{name}.xml", fcp_xml(s, cuts, f"FramePilot {name}", removed, fitted=True))
+        z.writestr(f"{name}.edl", edl(s, cuts, f"FramePilot {name}", removed, fitted=True))
         if (s / "transcript.json").exists():                    #timed like this timeline
             for lang in ("ar", "en"):
                 z.writestr(f"captions_{lang}.srt", version_captions(s, {**v, "intro": 0.0}, lang))
