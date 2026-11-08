@@ -1,6 +1,7 @@
 """Profanity matching, caption masking, and FFmpeg beep mix for the soundtrack."""
 import re
 import unicodedata
+from functools import lru_cache
 from pathlib import Path
 
 import yaml
@@ -15,6 +16,11 @@ LETTER_MAP = str.maketrans({
     "ؤ": "و", "ئ": "ي",
     "گ": "ك", "ڤ": "ف",
 })
+# Arabic letters that attach to the start or end of a word without changing the insult (spelled after
+# normalize(): ة is already ه). The start goes only on a phrase's first word; what is left must keep 3+ letters.
+PREFIXES = ("وال", "فال", "بال", "لل", "ال", "يا", "و", "ف", "ب")
+SUFFIXES = ("ين", "ات", "ه")
+MIN_STEM = 3
 CFG = (yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8")) or {}).get("bleep") or {}
 HZ = int(CFG.get("hz", 1000))
 PAD = float(CFG.get("pad", 0.07))
@@ -68,13 +74,31 @@ def bleep_enabled(session_dir):
     return False
 
 
+@lru_cache(maxsize=4096)
+def word_forms(norm, first):
+    """The normalised word plus what is left after one attached start (first word of a phrase only) and/or one
+    feminine/plural ending: 'الغبيه' -> {'الغبيه', 'غبيه', 'الغبي', 'غبي'}."""
+    heads = {norm}
+    if first:
+        heads |= {norm[len(p):] for p in PREFIXES if norm.startswith(p) and len(norm) - len(p) >= MIN_STEM}
+    forms = set(heads)
+    for h in heads:
+        forms |= {h[:-len(s)] for s in SUFFIXES if h.endswith(s) and len(h) - len(s) >= MIN_STEM}
+    return frozenset(forms)
+
+
+def phrase_at(norms, i, phrase):
+    return all(norms[i + k] == want or want in word_forms(norms[i + k], k == 0) for k, want in enumerate(phrase))
+
+
 def match_tokens(tokens, phrases=None):
-    """Greedy whole-token matches. tokens = [{'w', 'start', 'end'}, ...]."""
+    """Greedy whole-token matches. tokens = [{'w', 'start', 'end'}, ...]. A token also matches when it is a listed
+    word with an attached start (ال, و, ف, ب, يا ...) or a feminine/plural ending (ة, ين, ات)."""
     phrases = phrases if phrases is not None else load_phrases()
     norms = [normalize(t.get("w", "")) for t in tokens]
     hits, i = [], 0
     while i < len(tokens):
-        n = next((len(p) for p in phrases if i + len(p) <= len(norms) and norms[i:i + len(p)] == p), 0)
+        n = next((len(p) for p in phrases if i + len(p) <= len(norms) and phrase_at(norms, i, p)), 0)
         if n:
             hits.append({"start": float(tokens[i]["start"]), "end": float(tokens[i + n - 1]["end"]),
                          "n": n, "i": i, "text": " ".join(t["w"] for t in tokens[i:i + n])})
@@ -142,14 +166,9 @@ def media_duration(path):
     return float(out.strip())
 
 
-def _expr(spans):
-    if not spans:
-        return "0"
-    return "+".join(f"between(t,{a:.4f},{b:.4f})" for a, b in spans)
-
-
 def _beep_volume(spans, fade=None):
-    """Frame expression: 1 inside each span, with a short linear fade at each edge."""
+    """Expression of t: 1 inside each span, with a short linear fade at each edge. The beep uses it as is and
+    the speech uses 1 minus it, so the two cross-fade instead of switching in one sample."""
     fade = FADE if fade is None else fade
     parts = []
     for a, b in spans:
@@ -167,7 +186,9 @@ def _beep_volume(spans, fade=None):
 
 
 def mix_bleeps(src, dst, spans, hz=None):
-    """Mute `src` on each span and overlay a sine beep with short fades. `spans` are already padded."""
+    """Fade the speech out on each span and a sine beep in, then back. `spans` are already padded.
+    volume=eval=frame only updates once per audio frame (about 21 ms by default), which turned the fades into
+    single steps and clicked; asetnsamples cuts the audio into 1 ms frames so the fades really ramp."""
     hz = HZ if hz is None else hz
     src, dst = Path(src), Path(dst)
     spans = merge_spans(spans)
@@ -176,11 +197,12 @@ def mix_bleeps(src, dst, spans, hz=None):
         run(["ffmpeg", "-y", "-i", src, "-vn", "-ac", "2", "-ar", "48000", dst])
         return dst
     dur = media_duration(src)
-    mute, tone = _expr(spans), _beep_volume(spans)
+    tone = _beep_volume(spans)
     graph = (
-        f"sine=f={hz}:d={dur:.4f}:r=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[beep];"
-        f"[0:a]aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=48000,"
-        f"volume=eval=frame:volume='if({mute},0,1)'[speech];"
+        f"sine=f={hz}:d={dur:.4f}:r=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
+        f"asetnsamples=n=48:p=0[beep];"
+        f"[0:a]aformat=sample_fmts=fltp:channel_layouts=stereo:sample_rates=48000,asetnsamples=n=48:p=0,"
+        f"volume=eval=frame:volume='max(0,1-({tone}))'[speech];"
         f"[beep]volume=eval=frame:volume='{tone}'[tone];"
         f"[speech][tone]amix=inputs=2:duration=first:dropout_transition=0,volume=2[aout]"
     )

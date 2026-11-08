@@ -135,6 +135,7 @@ class CaptionStyle(BaseModel):                # brand.json -> captions
     box: bool = True                          # true = a box behind the text, false = an outline around the letters
     size: Literal["small", "medium", "large"] = "medium"
     word_color: str = "#FFD43B"               # the word being said (word-by-word captions, configs captions)
+    animation_style: Literal["default", "pop", "karaoke"] = "default"
 
     @field_validator("text_color", "box_color", "word_color")
     @classmethod

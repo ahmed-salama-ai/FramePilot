@@ -41,6 +41,10 @@ const I18N = {
     ph_speakers_num: "مثال: 2",
     dropzone_title: "اسحب ملفات الفيديو إلى هنا أو اضغط للاختيار",
     dropzone_hint: "يدعم صيغ MP4, MOV - يرجى رفع من 2 إلى 4 كاميرات (حجم الملف حتى 2 جيجابايت)",
+    label_camera_videos: "فيديوهات الكاميرات (من 2 إلى 4 كاميرات) *",
+    attach_file: "رفع ملف من الجهاز (Attach a file)",
+    import_link_gdrive: "استيراد من رابط أو Google Drive",
+    gdrive_hint_tip: "تنبيه لجوجل درايف: تأكد من ضبط مشاركة الفولدر أو الملف على Anyone with the link بصلاحية Viewer (مشاهد) ليتمكن النظام من قراءة الفيديوهات بدون طلب تسجيل دخول.",
     file_uploading: "جاري الرفع...",
     consent_text: "أقر بأن جميع الأشخاص الظاهرين في هذه الفيديوهات وافقوا على تصويرهم ومعالجة المواد بالذكاء الاصطناعي.",
     btn_start_processing: "بدء الرفع والمعالجة الذكية",
@@ -63,6 +67,9 @@ const I18N = {
     job_err_box_title: "تعثرت المعالجة في هذه المرحلة",
     btn_show_details: "عرض تفاصيل السجل",
     btn_try_again: "إعادة المحاولة",
+    btn_cancel_job: "إلغاء العملية",
+    job_cancelled_title: "تم إلغاء هذه العملية بنجاح",
+    confirm_cancel_job: "هل أنت متأكد من رغبتك في إلغاء عملية الإخراج الحالية؟",
     btn_go_results: "الانتقال إلى لوحة النتائج",
 
     // Results page
@@ -163,6 +170,10 @@ const I18N = {
     brand_box_style: "شكل الترجمة",
     style_box: "صندوق خلف النص",
     style_outline: "حدود حول الحروف",
+    brand_caption_animation: "نمط حركة الترجمة",
+    caption_animation_default: "افتراضي",
+    caption_animation_pop: "ظهور منبثق",
+    caption_animation_karaoke: "تمييز الكلمات",
     brand_removed: "سيُحذف عند الحفظ",
     captions_editor_title: "محرر الترجمة",
     captions_editor_hint: "صحّح أي كلمة ثم احفظ. ملفات الترجمة تتغير فوراً، والفيديو المحمّل والهايلايتس بعد «تحديث الفيديو».",
@@ -295,6 +306,10 @@ const I18N = {
     ph_speakers_num: "e.g. 2",
     dropzone_title: "Drag & drop video files here, or click to browse",
     dropzone_hint: "Supports MP4, MOV - Upload 2 to 4 cameras (up to 2 GB per file)",
+    label_camera_videos: "Camera Videos (2 to 4 cameras) *",
+    attach_file: "Attach a file from computer",
+    import_link_gdrive: "Import from Link or Google Drive",
+    gdrive_hint_tip: "Google Drive tip: Ensure the folder or file is set to Anyone with the link &rarr; Viewer (not Editor) so recordings can be imported without sign-in.",
     file_uploading: "Uploading...",
     consent_text: "I confirm that everyone recorded in these videos consented to be recorded and processed by AI.",
     btn_start_processing: "Upload & Start Directing",
@@ -317,6 +332,9 @@ const I18N = {
     job_err_box_title: "Pipeline stage execution failed",
     btn_show_details: "Show Log Details",
     btn_try_again: "Try Again",
+    btn_cancel_job: "Cancel Operation",
+    job_cancelled_title: "This operation was cancelled.",
+    confirm_cancel_job: "Are you sure you want to cancel this operation?",
     btn_go_results: "Open Results Dashboard",
 
     // Results page
@@ -417,6 +435,10 @@ const I18N = {
     brand_box_style: "Caption style",
     style_box: "Box behind the text",
     style_outline: "Outline around the letters",
+    brand_caption_animation: "Caption animation style",
+    caption_animation_default: "Default",
+    caption_animation_pop: "Pop",
+    caption_animation_karaoke: "Karaoke highlight",
     brand_removed: "Removed when you save",
     captions_editor_title: "Caption editor",
     captions_editor_hint: "Fix any word, then save. The caption files change at once; the downloadable video and the highlights after \"Update video\".",
@@ -509,7 +531,7 @@ const I18N = {
   }
 };
 
-let currentLang = localStorage.getItem("framepilot_lang") || "ar";
+let currentLang = localStorage.getItem("framepilot_lang") || "en";
 
 function getLang() {
   return currentLang;

@@ -53,6 +53,38 @@ def test_export_package(s):
     assert "Premiere Pro" in z.read("README.txt").decode()
 
 
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is not on PATH")
+def test_export_sound_follows_the_bleep_switch(s):
+    cuts = read_json(s / "cuts.json")
+
+    def sound(xml):
+        root = ET.fromstring(xml.split("\n", 2)[2])
+        items = root.findall("./sequence/media/audio/track/clipitem")
+        pictures = {i.find("name").text for i in root.findall("./sequence/media/video/track/clipitem")}
+        files = {f.get("id"): f for f in root.iter("file") if f.find("pathurl") is not None}
+        timing = [tuple(i.find(k).text for k in ("start", "end", "in", "out")) for i in items]
+        return {i.find("name").text for i in items}, timing, pictures, files
+
+    names, timing_off, pictures, _ = sound(fcp_xml(s, cuts, "t"))
+    assert names == {"cam1.mp4"} and not (s / "audio_bleeped.wav").exists()      # off: the camera's own sound
+
+    for name in ("session.json", "upload.json"):
+        write_json(s / name, {**read_json(s / name), "bleep_profanity": True})
+    (s / "profanity.txt").write_text("حلقة\n", encoding="utf-8")                    # a word the mock says
+    names, timing_on, pictures_on, files = sound(fcp_xml(s, cuts, "t"))
+    assert names == {"audio_bleeped.wav"} and timing_on == timing_off               # same frames, bleeped file
+    assert pictures_on == pictures and all(p.startswith("cam") for p in pictures)   # pictures still from cameras
+    assert files["file-bleep"].find("pathurl").text.endswith("/audio_bleeped.wav")
+    assert files["file-bleep"].find("media/video") is None                          # a sound-only file
+
+    lines = edl(s, cuts, "t").splitlines()
+    sound_events = [k for k, l in enumerate(lines) if l[:3].isdigit() and " AA " in l]
+    assert sound_events and all(lines[k][5:13] == "BLEEPED " for k in sound_events)
+    assert all(lines[k + 1] == "* FROM CLIP NAME: audio_bleeped.wav" for k in sound_events)
+    readme = zipfile.ZipFile(export_package(s, "v1")).read("README.txt").decode()
+    assert "audio_bleeped.wav" in readme and "listed words bleeped" in readme
+
+
 def test_versions(s, tmp_path):
     assert [v["id"] for v in list_versions(s)] == ["v1"]                   # no versions.json: the pipeline's edit
     v = new_version(s, "agent", "show the guest more")

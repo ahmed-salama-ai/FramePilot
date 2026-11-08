@@ -3,12 +3,15 @@ from pathlib import Path
 from urllib.parse import quote
 from xml.sax.saxutils import escape
 
+from ai_director.audio.bleep import media_duration, soundtrack
 from ai_director.common.io import read_json, session_from_argv
+from ai_director.common.paths import AUDIO_BLEEPED
 from ai_director.director.pauses import fit_cuts, keep_parts, out_time
 from ai_director.director.versions import get_version, version_captions
 from ai_director.ingest.probe import probe
 
 FPS = 30
+BLEEP = "bleep"           # Files key of audio_bleeped.wav: the reference camera's sound with the listed words bleeped
 
 README = """FramePilot edit {name} - open it in Premiere Pro or DaVinci Resolve
 
@@ -43,29 +46,44 @@ def rate():
 
 
 class Files:
-    """Each camera file is described once then only referred to."""
+    """Each camera file (key = camera number) and the bleeped sound (key BLEEP) is described once then only
+    referred to."""
 
     def __init__(self, s):
         self.s, self.done, self.info = s, set(), {}
 
-    def length(self, cam):
-        if cam not in self.info:
-            self.info[cam] = probe(self.s / f"video/cam{cam}.mp4")
-        return frames(self.info[cam]["duration"])
+    def path(self, key):
+        return self.s / (AUDIO_BLEEPED if key == BLEEP else f"video/cam{key}.mp4")
 
-    def xml(self, cam):
-        if cam in self.done:
-            return f'<file id="file-{cam}"/>'
-        self.done.add(cam)
-        i = self.info[cam] if cam in self.info else probe(self.s / f"video/cam{cam}.mp4")
-        return (f'<file id="file-{cam}"><name>cam{cam}.mp4</name>'
-                f"<pathurl>{escape(path_url(self.s / f'video/cam{cam}.mp4'))}</pathurl>{rate()}"
-                f"<duration>{self.length(cam)}</duration>"
+    def name(self, key):
+        return self.path(key).name
+
+    def length(self, key):
+        if key not in self.info:
+            self.info[key] = {"duration": media_duration(self.path(key))} if key == BLEEP else probe(self.path(key))
+        return frames(self.info[key]["duration"])
+
+    def xml(self, key):
+        if key in self.done:
+            return f'<file id="file-{key}"/>'
+        self.done.add(key)
+        length = self.length(key)
+        i = self.info[key]
+        video = ("" if key == BLEEP else
+                 f"<video><samplecharacteristics>{rate()}<width>{i['width']}</width><height>{i['height']}</height>"
+                 f"<pixelaspectratio>square</pixelaspectratio></samplecharacteristics></video>")
+        return (f'<file id="file-{key}"><name>{self.name(key)}</name>'
+                f"<pathurl>{escape(path_url(self.path(key)))}</pathurl>{rate()}"
+                f"<duration>{length}</duration>"
                 f"<timecode>{rate()}<string>00:00:00:00</string><frame>0</frame><displayformat>NDF</displayformat>"
-                f"</timecode><media><video><samplecharacteristics>{rate()}<width>{i['width']}</width>"
-                f"<height>{i['height']}</height><pixelaspectratio>square</pixelaspectratio></samplecharacteristics>"
-                f"</video><audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate>"
-                f"</samplecharacteristics><channelcount>2</channelcount></audio></media></file>")
+                f"</timecode><media>{video}<audio><samplecharacteristics><depth>16</depth><samplerate>48000"
+                f"</samplerate></samplecharacteristics><channelcount>2</channelcount></audio></media></file>")
+
+
+def sound_key(s, ref):
+    """The sound under the edit: audio_bleeped.wav when bleeping is on (same time base as the reference camera, so
+    the same in/out frames), else the reference camera's own sound."""
+    return BLEEP if soundtrack(s) == AUDIO_BLEEPED else ref
 
 
 def clipitem(n, files, cam, a, b, enabled=True, audio_track=None, src=None):
@@ -73,7 +91,7 @@ def clipitem(n, files, cam, a, b, enabled=True, audio_track=None, src=None):
     track = (f"<sourcetrack><mediatype>audio</mediatype><trackindex>{audio_track}</trackindex></sourcetrack>"
              if audio_track else "")
     i, o = src or (a, b)
-    return (f'<clipitem id="clipitem-{n}"><name>cam{cam}.mp4</name><enabled>{"TRUE" if enabled else "FALSE"}'
+    return (f'<clipitem id="clipitem-{n}"><name>{files.name(cam)}</name><enabled>{"TRUE" if enabled else "FALSE"}'
             f"</enabled><duration>{files.length(cam)}</duration>{rate()}<start>{a}</start><end>{b}</end>"
             f"<in>{i}</in><out>{o}</out>{files.xml(cam)}{track}</clipitem>")
 
@@ -110,12 +128,13 @@ def fcp_xml(s, cuts, name, removed=None):
                            f"and cam{c['split'][1]} (right) side by side here; V2 has the other camera</comment>"
                            f"<in>{a}</in><out>{b}</out></marker>")
     parts = keep_parts(0.0, cuts[-1]["end"], removed) if removed else [(0.0, cuts[-1]["end"])]
+    snd = sound_key(s, ref)
     audio = []
     for k in (1, 2):
         for a, b in parts:
             ra = frames(out_time(a, removed))
             n += 1
-            audio.append(clipitem(n, files, ref, ra, ra + frames(b) - frames(a), audio_track=k,
+            audio.append(clipitem(n, files, snd, ra, ra + frames(b) - frames(a), audio_track=k,
                                   src=(frames(a), frames(b))))
     half = len(audio) // 2
     track = lambda items: f"<track>{''.join(items)}<enabled>TRUE</enabled><locked>FALSE</locked></track>"
@@ -145,11 +164,13 @@ def edl(s, cuts, name, removed=None):
         if c.get("split"):
             lines.append(f"* SPLIT SCREEN: CAM{c['split'][0]} LEFT, CAM{c['split'][1]} RIGHT")
         lines.append("")
+    bleeped = sound_key(s, ref) == BLEEP
+    reel, clip = ("BLEEPED", AUDIO_BLEEPED) if bleeped else (f"CAM{ref}", f"cam{ref}.mp4")
     for a, b in keep_parts(0.0, cuts[-1]["end"], removed) if removed else [(0.0, cuts[-1]["end"])]:
         k += 1
         i, o, r = frames(a), frames(b), frames(out_time(a, removed))
-        lines += [f"{k:03d}  CAM{ref:<5}AA    C        {timecode(i)} {timecode(o)} {timecode(r)} {timecode(r + o - i)}",
-                  f"* FROM CLIP NAME: cam{ref}.mp4", ""]
+        lines += [f"{k:03d}  {reel:<8}AA    C        {timecode(i)} {timecode(o)} {timecode(r)} {timecode(r + o - i)}",
+                  f"* FROM CLIP NAME: {clip}", ""]
     return "\n".join(lines)
 
 
@@ -161,8 +182,11 @@ def export_package(session_dir, vid="v1"):
     name = f"{s.name}_{vid}"
     out = s / "export" / f"{name}_premiere_davinci.zip"
     out.parent.mkdir(exist_ok=True)
-    cams = sorted({c["cam"] for c in cuts} | {x for c in cuts for x in c.get("split") or []} |
-                  {read_json(s / "session.json")["reference_cam"]})
+    ref = read_json(s / "session.json")["reference_cam"]
+    cams = sorted({c["cam"] for c in cuts} | {x for c in cuts for x in c.get("split") or []} | {ref})
+    media = [f"  {(s / f'video/cam{c}.mp4').resolve()}" for c in cams]
+    if sound_key(s, ref) == BLEEP:
+        media.append(f"  {(s / AUDIO_BLEEPED).resolve()}  (the sound: cam{ref} with the listed words bleeped)")
     removed = v.get("removed") or []
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(f"{name}.xml", fcp_xml(s, cuts, f"FramePilot {name}", removed))
@@ -170,8 +194,7 @@ def export_package(session_dir, vid="v1"):
         if (s / "transcript.json").exists():                    #timed like this timeline
             for lang in ("ar", "en"):
                 z.writestr(f"captions_{lang}.srt", version_captions(s, {**v, "intro": 0.0}, lang))
-        z.writestr("README.txt", README.format(name=name, files="\n".join(
-            f"  {(s / f'video/cam{c}.mp4').resolve()}" for c in cams)))
+        z.writestr("README.txt", README.format(name=name, files="\n".join(media)))
     return out
 
 

@@ -66,6 +66,84 @@ def test_false_positives_are_not_matched():
     assert mask_text("the class assessment passed", PHRASES) == "the class assessment passed"
 
 
+# Each entry is spelled differently from configs/profanity.txt and must still be found through the real
+# matcher (word timings) and masked in captions.
+ARABIC_SPELLING_VARIANTS = [
+    ("أهبل", "alef with hamza above"),
+    ("ٱهبل", "alef wasla"),
+    ("إبن اللذينة", "alef with hamza below, ta marbuta"),
+    ("آبن اللذينه", "alef madda, ha for ta marbuta"),
+    ("غَبِيّ", "diacritics and shadda"),
+    ("قَلِيلُ الأَدَب", "diacritics across a phrase"),
+    ("قليل الإدب", "wrong hamza inside a phrase"),
+    ("تافة", "ta marbuta written for a final ha"),
+    ("غبى", "alef maqsura for a final ya"),
+    ("غـبـي", "tatweel"),
+    ("حمـار", "tatweel in a longer word"),
+    ("غبيييي", "stretched final letter"),
+    ("سخيييف", "stretched middle letter"),
+    ("يا ابن اللذينة", "three-word phrase"),
+]
+
+
+# Listed base words with an attached start or a feminine/plural ending.
+ARABIC_WORD_FORMS = [
+    ("الغبي", "definite article"),
+    ("والغبي", "and + article"),
+    ("بالغبي", "with + article"),
+    ("للغبي", "to + article"),
+    ("ياغبي", "ya written joined"),
+    ("وحمار", "and"),
+    ("غبية", "feminine ta marbuta"),
+    ("الغبية", "article + feminine"),
+    ("فاشلين", "plural -een"),
+    ("غبيات", "plural -aat"),
+    ("يا فاشلة", "feminine inside a phrase"),
+    ("قليلة الأدب", "feminine first word of a phrase"),
+    ("وابن اللذينة", "and + phrase"),
+]
+
+# Egyptian sound changes are listed as their own lines in configs/profanity.txt.
+EGYPTIAN_LISTED_SPELLINGS = [
+    ("أليل الأدب", "qaf said as hamza"),
+    ("ابن اللزينة", "thal said as zay"),
+    ("يا ابن اللزينة", "thal said as zay, three words"),
+]
+
+
+@pytest.mark.parametrize("variant", [v for v, _ in ARABIC_SPELLING_VARIANTS + ARABIC_WORD_FORMS
+                                     + EGYPTIAN_LISTED_SPELLINGS],
+                         ids=[why for _, why in ARABIC_SPELLING_VARIANTS + ARABIC_WORD_FORMS
+                              + EGYPTIAN_LISTED_SPELLINGS])
+def test_arabic_spelling_variant_is_bleeped_and_masked(variant):
+    parts = variant.split()
+    spoken = words(("قال", 0.0, 0.4), *[(w, 0.5 + i * 0.5, 0.9 + i * 0.5) for i, w in enumerate(parts)],
+                   ("امبارح", 3.0, 3.6))
+    hits = match_tokens(spoken, PHRASES)
+    assert len(hits) == 1
+    assert hits[0]["start"] == 0.5 and hits[0]["end"] == 0.9 + (len(parts) - 1) * 0.5
+    assert hits[0]["n"] == len(parts)
+    masked = mask_text(f"قال {variant} امبارح", PHRASES).split()
+    assert masked[0] == "قال" and masked[-1] == "امبارح"
+    assert all(set(w) == {"*"} for w in masked[1:-1])
+
+
+def test_arabic_spelling_variants_cover_the_brief():
+    assert len(ARABIC_SPELLING_VARIANTS) >= 10
+
+
+@pytest.mark.parametrize("sentence", [
+    # parts of listed phrases on their own, and ordinary words that look like listed ones
+    "يا ابني الأدب العربي فيه قليل من الفشل لكن صوته رخيم وفي تفاهم",
+    # names and words that start with ال / و / ب / يا or end with ين / ات / ه but are not listed words
+    "ياسر وياسمين في الحمام والرخام عليه غبار بيتين عربيات وقليل حمارنا سخافة بالأدب الابن ابنه بابا",
+], ids=["phrase parts and look-alikes", "attached starts and endings on normal words"])
+def test_arabic_everyday_words_near_the_list_are_not_bleeped(sentence):
+    spoken = words(*[(w, i * 0.4, i * 0.4 + 0.35) for i, w in enumerate(sentence.split())])
+    assert match_tokens(spoken, PHRASES) == []
+    assert mask_text(sentence, PHRASES) == sentence
+
+
 def test_pad_spans_adds_margin():
     padded = pad_spans([{"start": 1.0, "end": 1.2}], pad=0.07, duration=10)
     assert padded == [(0.93, 1.27)]
@@ -142,8 +220,35 @@ def test_mix_graph_mutes_speech_and_adds_a_sine(tmp_path, monkeypatch):
     mix_bleeps(src, dst, [(0.5, 0.8)], hz=1000)
     graph = cmds[0][cmds[0].index("-filter_complex") + 1]
     assert "sine=f=1000" in graph
-    assert "between(t,0.5000,0.8000)" in graph
-    assert "volume=eval=frame" in graph
+    assert "between(t,0.5000,0.5200)" in graph and "between(t,0.7800,0.8000)" in graph   # 20 ms fades
+    assert "volume=eval=frame:volume='max(0,1-(" in graph                                  # speech fades too
+    assert graph.count("asetnsamples=n=48") == 2                                            # 1 ms steps
+
+
+@pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not on PATH")
+def test_ffmpeg_bleep_edges_do_not_click_or_leak(tmp_path):
+    # a steady 440 Hz "voice"; the span does not start or end on an ffmpeg audio frame edge
+    src, dst = tmp_path / "in.wav", tmp_path / "out.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=440:d=3:r=48000",
+                    "-ac", "2", src], check=True)
+    a, b = 1.013, 1.517
+    mix_bleeps(src, dst, [(a, b)], hz=1000)
+    y, sr = sf.read(str(dst))
+    y = y[:, 0]
+
+    def level(t0, t1, hz):
+        x = y[int(t0 * sr):int(t1 * sr)]
+        t = np.arange(len(x)) / sr
+        return 2 * abs(np.mean(x * np.exp(-2j * np.pi * hz * t)))
+
+    voice, beep = level(0.2, 0.9, 440), level(a + 0.05, b - 0.05, 1000)
+    # a click is a jump between two samples bigger than the two clean tones can make together
+    clean_jump = 2 * np.pi * (440 * voice + 1000 * beep) / sr
+    assert np.abs(np.diff(y)).max() < 1.1 * clean_jump
+    # once the 20 ms fade is over, nothing of the voice is left (below -40 dB)
+    assert level(a + 0.02, b - 0.02, 440) < voice * 0.01
+    # and the voice is back at full level after the span
+    assert level(b + 0.02, 2.9, 440) > voice * 0.95
 
 
 @pytest.mark.skipif(not FFMPEG, reason="ffmpeg is not on PATH")

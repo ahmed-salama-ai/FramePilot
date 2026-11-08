@@ -81,9 +81,13 @@ plus a close-up camera for each seat.
   fixed gain measured once per recording.
 - **Clean voice** (optional). Rumble removed, background noise reduced and voices made clearer.
 - **Profanity bleeping** (optional, off by default). An editable Egyptian Arabic and English wordlist
-  (`configs/profanity.txt`) is matched to transcript word times. Hits become a sine beep in the finished video and
-  clips, and the same words are masked in captions. Arabic spelling variants (diacritics, alef forms, taa marbuta/haa)
-  are normalised before matching so near-spellings still hit, without matching inside longer innocent words.
+  (`configs/profanity.txt`) is matched to transcript word times. Each hit becomes a 1 kHz beep that cross-fades with
+  the voice (no clicks) in the full video, clips, highlights, trailer, podcast MP3 and the Premiere/DaVinci export,
+  and the same words are masked with `***` in SRT, VTT and burned-in captions. Arabic spelling variants (diacritics,
+  alef forms, taa marbuta/haa, alef maqsura, tatweel, stretched letters) are normalised, and a listed word is also
+  caught with an attached start (ال، و، ف، ب، يا) or a feminine/plural ending (ة، ين، ات). Only whole words match:
+  everyday words that merely contain a listed word are left alone. See
+  [Profanity bleeping](#8-profanity-bleeping).
 
 ### Brand kit
 
@@ -459,6 +463,51 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000), create a new project, uploa
 wide camera and the language, and follow the progress. The web server handles the pages; the worker runs the
 pipeline and the other long jobs one at a time.
 
+### 7. Import from Direct Links or Google Drive
+
+FramePilot supports importing multi-camera video recordings directly from Google Drive share links, public folders, or direct HTTP/HTTPS video URLs:
+
+1. Open [http://127.0.0.1:8000/new](http://127.0.0.1:8000/new).
+2. Click the `+` action button next to the link input:
+   - Select **Attach a file from computer** to upload local videos.
+   - Select **Import from Link or Google Drive** and paste single video links or a public Google Drive folder URL (`https://drive.google.com/drive/folders/...`).
+3. Press **⚡ Import Link**. All camera recordings will be inspected and listed with interactive controls:
+   - **Re-order cameras:** Use `▲` and `▼` to set Camera 1, 2, 3 priority.
+   - **Quick preview:** Click `👁 Preview` to verify camera angles and audio before starting.
+   - **Google Drive tip:** Ensure the shared folder/file access is set to **"Anyone with the link" &rarr; "Viewer"** (not Editor) so files can be downloaded without sign-in.
+4. Select the Wide Camera and click **Upload & Start AI Directing**. Videos are streamed directly to disk in 128 KB chunks with zero RAM buffering, validated with `ffprobe`, and protected by multi-hop SSRF security checks.
+
+#### Testing the Link Downloader
+Run the test suite to verify SSRF protection, URL parsing, and file streaming:
+```bash
+pytest tests/test_downloader.py tests/test_web.py -k "import or ssrf or downloader"
+```
+
+### 8. Profanity bleeping
+
+1. Tick **Bleep profanity** on the upload page (or add `"bleep_profanity": true` to `upload.json`). It is off by
+   default and is set per recording.
+2. The words come from `configs/profanity.txt`, one word or phrase per line, `#` for comments. A `profanity.txt` in a
+   session folder is used instead of it for that recording only.
+3. List the base form only: `غبي` also catches `الغبي`, `ياغبي`, `غبية`, `غبيات`, and spelling variants such as `غبى` or
+   `غـبـي`. Egyptian sound changes are not guessed, so add them as their own lines (`قليل الأدب` and `أليل الأدب`).
+4. Matching uses the transcript's word times: each hit is padded by `bleep.pad` (70 ms) on both sides, the voice fades
+   out and the beep fades in over `bleep.fade` (20 ms), so the word itself is fully covered. The video and the sound
+   keep their length, so nothing moves out of sync.
+
+Test it:
+
+```bash
+pytest tests/test_bleep.py tests/test_export.py
+```
+
+To try it on a real recording without swear words in it, put a few ordinary words that are said in that recording in
+the session's `profanity.txt`, turn bleeping on and run the pipeline: those words beep in the video and show as `***`
+in the captions.
+
+Known limits: a listed word is bleeped whatever it means in context (`حمار` is also the animal); English plurals
+(`idiots`) are not caught unless listed; a translated caption is only masked if its English word is listed too.
+
 ### Or use the command line
 
 Create a session folder with the camera files and an `upload.json`:
@@ -574,7 +623,7 @@ Everything is saved inside the session folder and can be downloaded from the res
 | Thumbnails, 1280x720, Arabic and English | `thumbnails/` |
 | Publish kit and blog article | `publish.json` |
 | Podcast MP3 with chapters | `export/` |
-| Premiere Pro / DaVinci Resolve package (XML, EDL, captions) | `export/` |
+| Premiere Pro / DaVinci Resolve package (XML, EDL, captions; the bleeped sound when bleeping is on) | `export/` |
 
 ## Results
 
