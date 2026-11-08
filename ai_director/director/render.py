@@ -6,10 +6,12 @@ from pathlib import Path
 import yaml
 
 from ai_director.audio.bleep import soundtrack
-from ai_director.common.io import h264, quality, read_json, run, session_from_argv   # h264(): GPU or CPU, 8-bit
+from ai_director.audio.fillers import load_fillers
+from ai_director.common.io import h264, quality, read_json, run, session_from_argv, write_json   # h264(): GPU or CPU
 from ai_director.common.paths import CONFIGS
 from ai_director.director.brand import caption_fields, load_brand, logo_overlay
 from ai_director.director.cards import name_cards
+from ai_director.director.filler_cuts import FPS, cut_settings, drop_cut_words
 from ai_director.director.pauses import fit_cuts, keep_parts, out_time
 from ai_director.director.zoom import zoom_filter, zoom_plan
 from ai_director.ingest.probe import probe
@@ -70,44 +72,59 @@ def audio_args(session_dir):
     return (["-af", lf] if lf else []) + ["-c:a", "aac", "-b:a", "192k"]
 
 
-def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None, cfg=None):
+def audio_graph(parts, fade, chain=None):
+    """The kept parts of the sound joined with `fade`-second crossfades, as FFmpeg filter lines -> [aout]. A crossfade
+    overlaps its two sides, so each part reaches fade/2 into the cut piece on each side: the sound stays exactly as
+    long as the kept parts (and the picture)."""
+    last = len(parts) - 1
+    graph = [f"[1:a]atrim=start={a - (fade / 2 if k else 0):.4f}:end={b + (fade / 2 if k < last else 0):.4f},"
+             f"asetpts=PTS-STARTPTS[a{k}]" for k, (a, b) in enumerate(parts)]
+    prev = "a0"
+    for k in range(1, len(parts)):
+        graph.append(f"[{prev}][a{k}]acrossfade=d={fade:.4f}:c1=tri:c2=tri[x{k}]")
+        prev = f"x{k}"
+    graph.append(f"[{prev}]{chain or 'anull'}[aout]")
+    return graph
+
+
+def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None, cfg=None, fitted=False):
     """Cut every shot out of its camera, join the shots, add ONE continuous audio track. A split shot = its two
-    cameras side by side. cfg = the settings to use (None: the job's own, job_config; another style's: a preview)."""
+    cameras side by side. cfg = the settings to use (None: the job's own, job_config; another style's: a preview).
+    fitted = the camera changes are already moved into the removed pieces (filler_cuts.plan_removed's shots)."""
     meta = read_json(session_dir / "session.json")
     sound_src = soundtrack(session_dir)
     tmp = session_dir / "tmp"
     tmp.mkdir(exist_ok=True)
-    if removed:
+    if removed and not fitted:
         cuts = fit_cuts(cuts, removed)                 #camera changes next to a cut pause moved into it (hidden cut)
     zooms = zoom_plan(session_dir, cuts, (cfg or {}).get("zoom"))
     names = []
     for i, c in enumerate(cuts):                       #1. one small video file per shot (per part, pauses cut out)
         for a, b in keep_parts(c["start"], c["end"], removed) if removed else [(c["start"], c["end"])]:
-            name, dur = f"seg{len(names):04d}.mp4", f"{b - a:.3f}"
+            #cut edges are on frames: exactly this many frames, so the picture stays as long as the sound
+            name, dur, ss = f"seg{len(names):04d}.mp4", f"{b - a + 0.05:.3f}", f"{max(a - 0.001, 0):.3f}"
+            frames = ["-frames:v", str(max(1, round((b - a) * FPS)))]
             if c.get("split"):
                 size = probe(session_dir / f"video/cam{c['cam']}.mp4")
                 cmd = ["ffmpeg", "-y"]
                 for cam in c["split"]:
-                    cmd += ["-ss", f"{a:.3f}", "-t", dur, "-i", f"video/cam{cam}.mp4"]
+                    cmd += ["-ss", ss, "-t", dur, "-i", f"video/cam{cam}.mp4"]
                 cmd += ["-filter_complex", split_filter(0, 1, c["split_x"], size["width"], size["height"], "v"),
                         "-map", "[v]"]
             else:
-                cmd = ["ffmpeg", "-y", "-ss", f"{a:.3f}", "-i", f"video/cam{c['cam']}.mp4", "-t", dur]
+                cmd = ["ffmpeg", "-y", "-ss", ss, "-i", f"video/cam{c['cam']}.mp4", "-t", dur]
                 if i in zooms:                         #punch-in: the same picture, slowly closer
                     size = probe(session_dir / f"video/cam{c['cam']}.mp4")
                     cmd += ["-vf", zoom_filter(zooms[i], a, size["width"], size["height"])]
-            run(cmd + ["-an", "-r", "30", *h264(quality("program")), f"tmp/{name}"], cwd=session_dir)
+            run(cmd + ["-an", "-r", str(FPS), *frames, *h264(quality("program")), f"tmp/{name}"], cwd=session_dir)
             names.append(f"file '{name}'")
     (tmp / "list.txt").write_text("\n".join(names), encoding="utf-8")
     #2. join the shots (no re-encoding) + 3. the sound of the reference camera for the whole video (one loudness)
-    if removed:                                        #the same parts of the sound, joined with 10 ms fades (no clicks)
+    if removed:                                        #the same parts of the sound, crossfaded (no clicks)
         parts = keep_parts(0.0, meta["duration"], removed)
-        graph = [f"[1:a]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS,afade=t=in:d=0.01,"
-                 f"afade=t=out:st={max(b - a - 0.01, 0):.3f}:d=0.01[a{k}]" for k, (a, b) in enumerate(parts)]
-        chain = loudness_filter(session_dir)
-        graph.append("".join(f"[a{k}]" for k in range(len(parts))) + f"concat=n={len(parts)}:v=0:a=1"
-                     + (f",{chain}" if chain else "") + "[aout]")
-        (tmp / "audio_graph.txt").write_text(";\n".join(graph), encoding="utf-8")
+        fade = cut_settings(load_fillers(session_dir))["crossfade"]
+        (tmp / "audio_graph.txt").write_text(";\n".join(audio_graph(parts, fade, loudness_filter(session_dir))),
+                                             encoding="utf-8")
         sound = ["-/filter_complex", "tmp/audio_graph.txt", "-map", "0:v", "-map", "[aout]",   #graph read from the file
                  "-c:a", "aac", "-b:a", "192k"]
     else:
@@ -217,7 +234,7 @@ def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertic
 
     events = []
     if captions and langs != "none" and (s / "transcript.json").exists():
-        for x in caption_items(s, langs):
+        for x in drop_cut_words(caption_items(s, langs), removed):     #cut fillers leave the captions too
             t = place(x["start"], x["end"])
             if not t:
                 continue
@@ -470,16 +487,24 @@ def program_shots(session_dir, start, end):
 
 
 if __name__ == "__main__":
-    from ai_director.director.pauses import plan_pauses, saved_seconds
+    from ai_director.director.filler_cuts import REPORT, plan_removed
+    from ai_director.director.pauses import saved_seconds
     from ai_director.director.versions import V1, add_version
     s = session_from_argv()
     cuts = read_json(s / "cuts.json")
-    removed = plan_pauses(s, cuts)
-    render_program(s, cuts, removed=removed)
+    removed, shots = plan_removed(s, cuts)             #long pauses + fillers, as chosen at upload ([] = nothing)
+    render_program(s, shots, removed=removed, fitted=True)
+    if removed:                                        #the export and "why this shot" use these exact shots
+        write_json(s / "shots.json", shots)
+    else:
+        (s / "shots.json").unlink(missing_ok=True)
     cold, lead = lead_in(s, removed)
     if lead or removed or (s / "versions.json").exists():
-        add_version(s, {**V1, "intro": lead, "removed": removed, "cold_open": list(cold) if cold else None})
+        add_version(s, {**V1, "intro": lead, "removed": removed, "cold_open": list(cold) if cold else None,
+                        "shots": "shots.json" if removed else ""})
     cards = finish(s, cuts=cuts, clean="program_clean.mp4", removed=removed)   #program.mp4
+    fillers = read_json(s / REPORT) if (s / REPORT).exists() else None
     print(f"done: {s / 'program.mp4'} + program_clean.mp4 (no captions)" + (f", {cards} name cards" if cards else "")
-          + (f", {len(removed)} pauses cut ({saved_seconds(removed)} s shorter)" if removed else "")
+          + (f", {len(removed)} pieces cut ({saved_seconds(removed)} s shorter)" if removed else "")
+          + (f", {fillers['cut']} fillers cut ({fillers['seconds']} s)" if fillers else "")
           + (f", cold open {cold[1] - cold[0]:.1f} s" if cold else ""))

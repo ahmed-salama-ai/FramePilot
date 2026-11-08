@@ -45,14 +45,11 @@ def wordlist_path(session_dir=None):
     return CONFIGS / "profanity.txt"
 
 
-def load_phrases(path=None):
-    """Normalised phrases, longest first so 'قليل الادب' wins over a shorter leftover."""
-    path = Path(path) if path else wordlist_path()
+def phrases_from(lines):
+    """Normalised phrases from lines of text, longest first so 'قليل الادب' wins over a shorter leftover."""
     phrases = []
-    if not path.exists():
-        return phrases
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.split("#", 1)[0].strip()
+    for line in lines:
+        line = str(line).split("#", 1)[0].strip()
         if not line:
             continue
         tokens = [normalize(t) for t in line.split()]
@@ -61,6 +58,27 @@ def load_phrases(path=None):
             phrases.append(tokens)
     phrases.sort(key=len, reverse=True)
     return phrases
+
+
+def load_phrases(path=None):
+    """The word list file as normalised phrases, longest first."""
+    path = Path(path) if path else wordlist_path()
+    return phrases_from(path.read_text(encoding="utf-8").splitlines()) if path.exists() else []
+
+
+def custom_words(session_dir):
+    """The extra words typed under "Bleep profanity" on the upload page for this recording (upload.json bleep_words)."""
+    p = Path(session_dir) / "upload.json"
+    words = read_json(p).get("bleep_words") if p.exists() else None
+    return [str(w) for w in words or [] if str(w).strip()]
+
+
+def session_phrases(session_dir):
+    """Everything bleeped in this recording: its word list (profanity.txt in the session folder, else
+    configs/profanity.txt) plus the words typed at upload."""
+    phrases = load_phrases(wordlist_path(session_dir))
+    phrases += [p for p in phrases_from(custom_words(session_dir)) if p not in phrases]
+    return sorted(phrases, key=len, reverse=True)
 
 
 def bleep_enabled(session_dir):
@@ -229,13 +247,12 @@ def write_bleeped_audio(session_dir):
         src = s / "audio.wav"
     if not src.exists():
         return None
-    phrases_path = wordlist_path(s)
-    phrases = load_phrases(phrases_path)
-    spans = pad_spans(match_transcript(rows, phrases), duration=media_duration(src))
+    spans = pad_spans(match_transcript(rows, session_phrases(s)), duration=media_duration(src))
     if not spans:
         out.unlink(missing_ok=True)
         return None
-    newest = max(src.stat().st_mtime, (s / "transcript.json").stat().st_mtime, phrases_path.stat().st_mtime)
+    lists = [p for p in (wordlist_path(s), s / "upload.json") if p.exists()]     #the words typed at upload too
+    newest = max(src.stat().st_mtime, (s / "transcript.json").stat().st_mtime, *(p.stat().st_mtime for p in lists))
     if out.exists() and out.stat().st_mtime >= newest:
         return out
     return mix_bleeps(src, out, spans)

@@ -111,6 +111,26 @@
       <small class="form-hint" style="display: block; margin-top: 6px;" data-i18n="bleep_hint">
         عند التفعيل تُستبدل الكلمات في القائمة بصوت تنبيه في الفيديو والكليبات، وتُحجب في الترجمة. الإعداد مغلق افتراضياً.
       </small>
+      <div id="bleepWordsBox" style="margin-top: 12px;" hidden>
+        <label class="form-label" for="bleepWords" data-i18n="label_bleep_words">كلمات إضافية للكتم (اختياري)</label>
+        <textarea id="bleepWords" name="bleep_words" class="form-control" rows="3" dir="auto"
+          data-i18n-ph="bleep_words_ph" placeholder="كلمة أو عبارة في كل سطر"></textarea>
+        <small class="form-hint" style="display: block; margin-top: 6px;" data-i18n="bleep_words_hint">
+          تُضاف إلى القائمة الأساسية لهذا التسجيل فقط، وتُطابق بنفس الطريقة (التشكيل، أشكال الألف، ال، ة...).
+        </small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="fillerMode" data-i18n="label_fillers">إزالة كلمات الحشو</label>
+      <select id="fillerMode" name="filler_mode" class="form-control">
+        <option value="off" selected data-i18n="fillers_off">إيقاف</option>
+        <option value="conservative" data-i18n="fillers_conservative">محافظ: أصوات التردد فقط (اه، امم)</option>
+        <option value="standard" data-i18n="fillers_standard">قياسي: وأيضاً كلمات مثل يعني ومثلا</option>
+      </select>
+      <small class="form-hint" style="display: block; margin-top: 6px;" data-i18n="fillers_hint">
+        تُقص الكلمة من الصورة والصوت معاً، وتُحذف من الترجمة. إذا كان القص سيظهر كقفزة في الصورة تبقى الكلمة.
+      </small>
     </div>
 
     <!-- Drag & Drop Zone -->
