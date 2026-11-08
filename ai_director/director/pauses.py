@@ -2,11 +2,12 @@ from pathlib import Path
 
 import yaml
 
+from ai_director.common.config import job_config
 from ai_director.common.io import read_json
 from ai_director.common.paths import CONFIGS
 
 _ALL = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))
-CFG = _ALL.get("pauses") or {"cut": False}
+CFG = _ALL.get("pauses") or {"cut": False}              # default.yaml only; a job's own (upload page box): job_config
 LAUGH = (_ALL.get("zoom") or {}).get("laugh", 0.25)     #laughing is not a pause
 GRID = 0.1                                               #cut points on the 0.1 s grid of the cut list (3 frames)
 MIN_PIECE = 1.0                                          #never leave a piece of a shot shorter than this (a flash)
@@ -80,17 +81,19 @@ def pieces_ok(cuts, r0, r1):
     return True
 
 
-def plan_pauses(s, cuts, on=None, jump_cuts=None):
+def plan_pauses(s, cuts, on=None, jump_cuts=None, cfg=None):
     """The pieces to remove from this cut list: [[start, end], ...] in time order. [] when pauses.cut is off.
     Each silence keeps about pauses.keep s (half before, half after the cut); the camera before the cut and after it
-    must be different (hidden cut), unless jump_cuts; no shot is left with a piece shorter than 1 s."""
-    on = CFG.get("cut", False) if on is None else on
-    jump_cuts = CFG.get("jump_cuts", False) if jump_cuts is None else jump_cuts
+    must be different (hidden cut), unless jump_cuts; no shot is left with a piece shorter than 1 s.
+    cfg = the job's pause settings (None: job_config(s)["pauses"], i.e. the "Remove long pauses" box at upload)."""
+    cfg = cfg or job_config(s).get("pauses") or {"cut": False}
+    on = cfg.get("cut", False) if on is None else on
+    jump_cuts = cfg.get("jump_cuts", False) if jump_cuts is None else jump_cuts
     if not on or not cuts:
         return []
-    keep = CFG.get("keep", 0.4)
+    keep = cfg.get("keep", 0.4)
     out, cur = [], cuts
-    for g0, g1 in silences(s):
+    for g0, g1 in silences(s, cfg.get("min_pause", 1.5)):
         lo, hi = snap(g0 + GRID), snap(g1 - GRID)          # the removed piece stays inside the silence
         r0, r1 = snap(g0 + keep / 2), snap(g1 - keep / 2)
         fitted = fit_one(cur, r0, r1)

@@ -13,6 +13,13 @@ class Person(BaseModel):                      # upload.json -> people: who is in
     role: str = ""                            # host, guest, ... (speakers.py ROLES), "" = not given
 
 
+class Style(BaseModel):                       # upload.json -> style: the editing style chosen at upload (Task 2)
+    preset: str                               # "calm", "balanced", "lively", "custom" (configs/styles.yaml)
+    choices: dict = {}                        # what was chosen (director/styles.py Choices)
+    remove_pauses: bool = False               # the "Remove long pauses" box next to the style (director/pauses.py)
+    config: dict = {}                         # the settings over default.yaml for this job (common/config.py)
+
+
 class Upload(BaseModel):                      # upload.json (web app → ingest)
     name: str
     language: Literal["ar", "en"]
@@ -21,6 +28,7 @@ class Upload(BaseModel):                      # upload.json (web app → ingest)
     speaker_names: dict[str, str] = {}        # {"SPEAKER_00": "Ahmed"}
     people: list[Person] = []                 # names typed at upload; speakers.py matches them to the
                                               # voices -> speakers.json (name_source "user") -> name cards
+    style: Style | None = None                # None = no style chosen: default.yaml as it is (= Balanced)
 
 
 class Camera(BaseModel):

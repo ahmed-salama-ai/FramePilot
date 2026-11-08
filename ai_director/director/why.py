@@ -1,12 +1,9 @@
 from pathlib import Path
 
-import yaml
-
+from ai_director.common.config import job_config
 from ai_director.common.io import read_json
-from ai_director.common.paths import CONFIGS
 from ai_director.director.cards import ROLE_LABELS
 
-RULES = yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8"))["switcher"]
 LAUGH = 0.25
 
 TEXT = {
@@ -70,6 +67,7 @@ def explain(session_dir, cuts, removed=None):
     if not cuts:
         return []
     meta = read_json(s / "session.json")
+    max_shot = job_config(s)["switcher"]["max_shot"]          # this job's longest shot (its editing style)
     roles = {c["id"]: c["role"] for c in meta["cameras"]}
     diar = read(s, "diarization.json", [])
     spk_cam = read(s, "speaker_map.json", {})
@@ -101,7 +99,7 @@ def explain(session_dir, cuts, removed=None):
         on_cam = lambda k: [p for p in spk_cam if spk_cam[p] == k]                          # noqa: E731
         laughing = max((laugh.get(t, 0.0) for t in range(int(a), int(b) + 1)), default=0.0) >= LAUGH
         prev = cuts[i - 1] if i else None
-        long_prev = prev and prev["end"] - prev["start"] >= RULES["max_shot"] - 0.5
+        long_prev = prev and prev["end"] - prev["start"] >= max_shot - 0.5
         args = {"a": top, "b": None, "p": round(100 * talk[top] / total) if top else 0, "c": cam,
                 "n": round(prev["end"] - prev["start"]) if prev else 0}
         if c.get("split"):
