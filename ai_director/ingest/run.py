@@ -22,7 +22,8 @@ def main(s):
         "reference_cam": ref,
         "cameras": [{"id": c, "role": "wide" if c == up["wide_cam"] else "closeup", "offset": offsets[c]}
                     for c in cams],
-        "num_speakers": up.get("num_speakers"), "speaker_names": up.get("speaker_names", {})})
+        "num_speakers": up.get("num_speakers"), "speaker_names": up.get("speaker_names", {}),
+        "bleep_profanity": bool(up.get("bleep_profanity", False))})
     print("done:", s / "session.json")
 
 

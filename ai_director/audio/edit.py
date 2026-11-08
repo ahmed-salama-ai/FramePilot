@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..common.io import read_json, write_json
+from .bleep import write_bleeped_audio
 from .subtitles import write_all_captions
 
 
@@ -37,6 +38,7 @@ def backup(s):
 
 def _after_change(s):
     write_all_captions(s)
+    write_bleeped_audio(s)
     (s / "search_index.npy").unlink(missing_ok=True)
 
 

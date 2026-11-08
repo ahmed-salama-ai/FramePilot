@@ -1,0 +1,44 @@
+# FramePilot wordlist of milder insults and rude expressions
+# (Egyptian Arabic + English). One word or phrase per line.
+# Lines starting with # are ignored.
+# Matching is whole words / whole phrases after spelling is normalised
+# (Arabic diacritics, alef / taa marbuta / haa, alef maqsura, tatweel,
+# stretched letters, English case and punctuation). A listed Arabic word is
+# also caught with an attached start (ال و ف ب يا وال بال فال لل) or a
+# feminine / plural ending (ة ين ات), so list only the base form.
+# Egyptian sound changes (ق -> أ, ذ -> ز) are not guessed: list them as their
+# own lines, as below.
+# Edit this file to add or remove terms. A session may also use its own
+# profanity.txt in the session folder (that file is used instead of this one).
+
+# English
+damn
+idiot
+stupid
+crap
+jerk
+dumb
+loser
+moron
+
+# Egyptian Arabic
+غبي
+أهبل
+اهبل
+حمار
+رخم
+سخيف
+تافه
+فاشل
+يا فاشل
+قليل الأدب
+قليل الادب
+ابن اللذينة
+ابن اللذينه
+يا ابن اللذينة
+يا ابن اللذينه
+
+# Egyptian spellings of the entries above
+أليل الأدب
+ابن اللزينة
+يا ابن اللزينة

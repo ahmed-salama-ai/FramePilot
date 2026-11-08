@@ -318,6 +318,7 @@ async def create_project(
     num_speakers: Optional[int] = Form(None),
     consent: bool = Form(...),
     people_json: str = Form("[]"),
+    bleep_profanity: str = Form("false"),
     brand_json: str = Form(""),
     logo: Optional[UploadFile] = File(None),
     intro: Optional[UploadFile] = File(None),
@@ -428,7 +429,8 @@ async def create_project(
             "wide_cam": wide_cam,
             "num_speakers": num_speakers,
             "speaker_names": {},
-            "people": people
+            "people": people,
+            "bleep_profanity": str(bleep_profanity).strip().lower() in {"1", "true", "on", "yes"},
         }
         (staging_dir / "upload.json").write_text(
             json.dumps(upload_data, ensure_ascii=False, indent=2),

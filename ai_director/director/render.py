@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from ai_director.audio.bleep import soundtrack
 from ai_director.common.io import h264, quality, read_json, run, session_from_argv   # h264(): GPU or CPU, 8-bit
 from ai_director.common.paths import CONFIGS
 from ai_director.director.brand import caption_fields, load_brand, logo_overlay
@@ -45,15 +46,16 @@ def loudness_filter(session_dir):
     s = Path(session_dir)
     cache = s / "tmp" / "loudness.json"
     m = read_json(cache) if cache.exists() else {}
-    if m.get("target") != LOUDNESS or m.get("clean", "") != clean:
-        ref = read_json(s / "session.json")["reference_cam"]
-        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", f"video/cam{ref}.mp4", "-vn", "-af",
+    ref = soundtrack(s)
+    if m.get("target") != LOUDNESS or m.get("clean", "") != clean or m.get("src") != ref:
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", ref, "-vn", "-af",
                             (f"{clean}," if clean else "") + f"loudnorm=I={LOUDNESS}:TP=-1.5:LRA=11:print_format=json",
                             "-f", "null", "-"],
                            cwd=s, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if r.returncode != 0:
             raise RuntimeError(f"Command failed: ffmpeg (loudness)\n{r.stderr[-1500:]}")
-        m = {**json.loads(r.stderr[r.stderr.rindex("{"):r.stderr.rindex("}") + 1]), "target": LOUDNESS, "clean": clean}
+        m = {**json.loads(r.stderr[r.stderr.rindex("{"):r.stderr.rindex("}") + 1]), "target": LOUDNESS, "clean": clean,
+             "src": ref}
         cache.parent.mkdir(exist_ok=True)
         cache.write_text(json.dumps(m, indent=2), encoding="utf-8")
     return ((f"{clean}," if clean else "") +
@@ -72,7 +74,7 @@ def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None):
     """Cut every shot out of its camera, join the shots, add ONE continuous audio track. A split shot = its two
     cameras side by side"""
     meta = read_json(session_dir / "session.json")
-    ref = meta["reference_cam"]
+    sound_src = soundtrack(session_dir)
     tmp = session_dir / "tmp"
     tmp.mkdir(exist_ok=True)
     if removed:
@@ -110,7 +112,7 @@ def render_program(session_dir, cuts, out="program_nocaps.mp4", removed=None):
                  "-c:a", "aac", "-b:a", "192k"]
     else:
         sound = ["-map", "0:v", "-map", "1:a", *audio_args(session_dir)]
-    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "tmp/list.txt", "-i", f"video/cam{ref}.mp4",
+    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "tmp/list.txt", "-i", sound_src,
          *sound, "-c:v", "copy", "-shortest", out], cwd=session_dir)
     for k in range(len(names)):                        #4. clean up the shot files
         (tmp / f"seg{k:04d}.mp4").unlink()
@@ -414,7 +416,7 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
     if langs != "none":                #caption times shifted so the clip starts at 0; 9:16 sizes scale with the height
         write_ass(session_dir, ass, langs=langs, vertical=fmt == "9:16", window=(start, end))
         vf.append(f"subtitles=tmp/{ass.name}")
-    ref = f"video/cam{meta['reference_cam']}.mp4"                                  #the sound of the reference camera
+    ref = soundtrack(session_dir)                                                  #the sound of the reference camera (bleeped when on)
     if shots:                          #one input per shot, joined in ONE FFmpeg run, then the captions on top
         cmd, parts, n = ["ffmpeg", "-y"], [], 0                 #n = inputs so far (a split shot has 2)
         for i, c in enumerate(shots):

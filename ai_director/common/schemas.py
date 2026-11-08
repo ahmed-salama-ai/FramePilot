@@ -21,6 +21,7 @@ class Upload(BaseModel):                      # upload.json (web app → ingest)
     speaker_names: dict[str, str] = {}        # {"SPEAKER_00": "Ahmed"}
     people: list[Person] = []                 # names typed at upload; speakers.py matches them to the
                                               # voices -> speakers.json (name_source "user") -> name cards
+    bleep_profanity: bool = False             # replace listed swear words with a beep in the video and clips
 
 
 class Camera(BaseModel):
@@ -38,6 +39,7 @@ class Session(BaseModel):                     # session.json (ingest)
     cameras: list[Camera]
     num_speakers: int | None = None
     speaker_names: dict[str, str] = {}
+    bleep_profanity: bool = False             # from upload.json; off unless the user turned it on
 
 
 class Span(BaseModel):                        # speech.json item

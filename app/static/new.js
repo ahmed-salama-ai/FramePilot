@@ -495,6 +495,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (numSpkEl && numSpkEl.value) formData.append("num_speakers", numSpkEl.value);
     formData.append("consent", "true");
     formData.append("people_json", JSON.stringify(readPeople()));
+    const bleepEl = document.getElementById("bleepProfanity");
+    formData.append("bleep_profanity", bleepEl && bleepEl.checked ? "true" : "false");
 
     if (typeof readBrandForm === "function") {
       const brand = readBrandForm();

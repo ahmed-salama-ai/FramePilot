@@ -54,6 +54,7 @@ def test_new_project_page(client):
     res = client.get("/new")
     assert res.status_code == 200
     assert "upload" in res.text.lower() or "رفع" in res.text
+    assert "bleepProfanity" in res.text
 
 def test_session_s00_results_page(client):
     res = client.get("/results/s00")
@@ -242,6 +243,7 @@ def test_upload_is_staged_and_writes_contract(client):
         "num_speakers": None,
         "speaker_names": {},
         "people": [],
+        "bleep_profanity": False,
     }
     assert (session_dir / "raw" / "cam1.mp4").read_bytes() == b"camera one"
     assert (session_dir / "raw" / "cam2.mp4").read_bytes() == b"camera two"
@@ -249,6 +251,25 @@ def test_upload_is_staged_and_writes_contract(client):
     assert not session_dir.exists()
     trashed = list(db.TRASH_DIR.glob(f"{payload['session_id']}_*"))     # moved to data/trash, not erased
     assert len(trashed) == 1 and (trashed[0] / "raw" / "cam1.mp4").read_bytes() == b"camera one"
+
+
+def test_upload_preserves_bleep_setting(client):
+    files = [
+        ("files", ("cam1.mp4", b"camera one", "video/mp4")),
+        ("files", ("cam2.mp4", b"camera two", "video/mp4")),
+    ]
+    res = client.post(
+        "/api/projects",
+        data={"name": "Bleep on", "consent": "true", "bleep_profanity": "true"},
+        files=files,
+    )
+    assert res.status_code == 200
+    sid = res.json()["session_id"]
+    upload = json.loads((SESSIONS / sid / "upload.json").read_text(encoding="utf-8"))
+    assert upload["bleep_profanity"] is True
+    job = db.get_latest_job(sid)
+    if job:
+        db.update_job(job["id"], status="done")
 
 
 def test_upload_size_failure_leaves_no_partial_session(client, monkeypatch):

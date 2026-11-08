@@ -8,6 +8,7 @@ MOCK = ROOT / "samples" / "mock_s00"
 UPLOAD = "upload.json"              # file from web
 SESSION = "session.json"            # ingest
 AUDIO = "audio.wav"                 # audio file
+AUDIO_BLEEPED = "audio_bleeped.wav" # soundtrack with listed swear words replaced by a beep
 SPEECH = "speech.json"              # audio
 DIARIZATION = "diarization.json"    # diarization
 TRANSCRIPT = "transcript.json"      # transcript
