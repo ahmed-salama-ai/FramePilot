@@ -4,14 +4,16 @@ import subprocess
 
 import numpy as np
 import pandas as pd
+from pydantic import TypeAdapter
 
 from ai_director.audio.subtitles import RLM
-from ai_director.common.io import run, write_json
+from ai_director.common.io import read_json, run, write_json
 from ai_director.common.paths import MOCK
+from ai_director.common.schemas import Highlight
 from ai_director.director import render
 from ai_director.director.brand import caption_fields, load_brand
 from ai_director.director.render import crop_11, crop_916, render_clip, window_x
-from ai_director.highlights.clips import strip_shots, vertical_source
+from ai_director.highlights.clips import remake_clips, strip_shots, vertical_source
 from ai_director.ingest.probe import probe
 
 # camera 2 = two people (A left, B right), camera 3 = C alone; A talks, then B (a 0.6 s "yes" from A makes no cut)
@@ -153,3 +155,34 @@ def test_longest_caption_stays_inside_the_square(tmp_path):
     margin = 0.05 * 1080
     assert left >= margin and right <= 1080 - margin, (left, right)                # wrapped inside the side margins
     assert top >= margin and bottom <= 1080 - margin, (top, bottom)                # and inside top and bottom
+
+
+def test_crop_from_the_cut_ai_edit(tmp_path, monkeypatch):
+    """The talker has no close-up -> the AI edit at ONE crop position. When the edit had pieces cut (fillers, pauses)
+    the clip is built from its shots, and that one position used to fail ('float' object has no attribute 'get')."""
+    s = clip_session(tmp_path)
+    shutil.copy(MOCK / "cuts.json", s)
+    monkeypatch.setattr(render, "program_removed", lambda session_dir: [[30.0, 30.4]])    # a filler was cut
+    for fmt, size in (("9:16", (720, 1280)), ("1:1", (720, 720))):
+        info = probe(render_clip(s, 12.0, 27.0, f"clips/p_{size[1]}.mp4", fmt=fmt, source="program", crop_x=0.41,
+                                 langs="none"))
+        assert (info["width"], info["height"]) == size and abs(info["duration"] - 15.0) < 0.1
+
+
+def test_update_video_saves_the_square_files(tmp_path):
+    """"Update video" remakes the highlights; highlights.json is saved again, so an older session (16:9 + 9:16 only)
+    lists its new 1:1 files and the results page shows them. Moments, titles and any other key stay."""
+    s = tmp_path / "s00"
+    shutil.copytree(MOCK, s)
+    old = read_json(s / "highlights.json")
+    assert all(set(h["files"]) == {"16:9", "9:16"} for h in old)                    # made before Task 3
+    write_json(s / "highlights.json", [{**old[0], "note": "kept"}] + old[1:])
+    items = remake_clips(s)
+    saved = read_json(s / "highlights.json")
+    assert saved == items and all(set(h["files"]) == {"16:9", "9:16", "1:1"} for h in saved)
+    assert saved[0]["note"] == "kept"
+    assert [(h["id"], h["start"], h["end"], h["title_en"]) for h in saved] == \
+        [(h["id"], h["start"], h["end"], h["title_en"]) for h in old]
+    TypeAdapter(list[Highlight]).validate_python(saved)                             # follows the contract
+    assert all((s / f).exists() for h in saved for f in h["files"].values())
+    assert (probe(s / saved[0]["files"]["1:1"])["width"], probe(s / saved[0]["files"]["1:1"])["height"]) == (720, 720)

@@ -107,7 +107,8 @@ plus a close-up camera for each seat.
 
 - **Highlights.** An interest curve built from loudness, laughter, energy and the scene labels proposes the strongest
   moments, cut at sentence edges, 20 to 45 seconds long. Gemini picks 3 to 5 of them and writes Arabic and English
-  titles. Each becomes a 16:9 and a 9:16 clip, and in 9:16 the frame follows whoever is speaking.
+  titles. Each becomes a 16:9, a 9:16 and a square 1:1 clip, and in 9:16 and 1:1 the frame follows whoever is
+  speaking (see [Square 1:1 clips](#11-square-11-clips)).
 - **Trailer.** A 30 to 45 second teaser from 4 to 6 strong moments, with fades through black, an end card, the brand
   outro and music, in 16:9 and 9:16.
 - **Thumbnails.** For each highlight, the frame where the speaker looks best (smiling, eyes open), cropped to 1280x720
@@ -125,11 +126,12 @@ A chat assistant on the results page, running locally on qwen3:8b with tool call
 
 - Takes requests in Arabic, English or Franco-Arabic, for example "make a 1-minute reel about salaries" or
   "اعمل كليب دقيقة ونص عن المرتبات وركز على الضيف".
-- Reads the length ("1-2 minutes", "1:20", "دقيقة ونص"), the format (TikTok, Reels, Shorts or vertical means 9:16),
-  the caption languages, the number of clips, and who to show and how much ("only the guest", "mostly the host").
+- Reads the length ("1-2 minutes", "1:20", "دقيقة ونص"), the format (TikTok, Reels, Shorts or vertical means 9:16;
+  square, مربع or 1:1 means 1:1), the caption languages, the number of clips, and who to show and how much ("only the
+  guest", "mostly the host").
 - Finds the moment by meaning with a bge-m3 search over the transcript, widens it to cover the whole topic, and cuts
   at sentence edges.
-- Handles follow-ups such as "make it longer", "30 seconds shorter" or "make it vertical".
+- Handles follow-ups such as "make it longer", "30 seconds shorter", "make it vertical" or "make it square".
 - Restyles the whole video, for example showing one person more or using more reaction shots. The result is a new
   version; the original is kept.
 - Refers to people by name or role ("the guest") and lists every clip it made.
@@ -224,7 +226,7 @@ flowchart TB
     S6["<b>6 &nbsp;Render</b><br/>FFmpeg + NVENC: cut and join every shot<br/>pause trimming and punch-in zoom<br/>loudness to -14 LUFS, clean voice<br/>libass captions, name cards, logo<br/>cold open, brand intro and outro"]
     F6[("program.mp4<br/>program_clean.mp4<br/>versions.json")]
 
-    S7["<b>7 &nbsp;Highlights</b><br/>interest curve<br/>Gemini 3.1 Flash-Lite: picks and titles<br/>16:9 and 9:16 clips, publish kit"]
+    S7["<b>7 &nbsp;Highlights</b><br/>interest curve<br/>Gemini 3.1 Flash-Lite: picks and titles<br/>16:9, 9:16 and 1:1 clips, publish kit"]
     F7[("highlights.json<br/>highlights/<br/>publish.json")]
 
     LAB[("labels.csv<br/>highlight_labels.csv<br/>(made on the labelling page)")]
@@ -621,6 +623,36 @@ pytest tests/test_fillers.py tests/test_filler_cuts.py tests/test_filler_eval.py
 pytest tests/test_web.py -k filler
 ```
 
+### 11. Square 1:1 clips
+
+Square videos (1080x1080 from 1080p cameras) for feeds that prefer them. Nothing to switch on:
+
+- **Highlights.** Every highlight also gets `highlights/hN_11.mp4`. The results page shows it next to the 16:9 and
+  9:16 players, with a **⬇ 1:1** button. A session made before this gets its square files with **Update video**.
+- **Editor Agent.** Ask for "a square clip", "1:1" or "اعمل كليب مربع"; "make it square" / "خليه مربع" remakes a clip
+  already made.
+
+The square is framed like the 9:16 strip: the close-up camera of whoever talks most, cropped on their face, cutting
+to whoever talks when two people share a camera (a split screen uses its main camera). The window is wider, 56% of
+the camera picture instead of 32%, so two people up to 0.38 of the width apart both fit and the square is centred
+between them (`FIT_11` in `ai_director/highlights/clips.py`). Captions use the 16:9 sizes (a square is as high as a
+16:9 frame) with 6% side margins (`SQUARE_SIDE` in `ai_director/director/render.py`), so long lines wrap inside it.
+
+On s01 (10 minutes, 3 cameras), the 4 highlights and 3 agent clips come out 1080x1080. The square's crop cut no face
+(the closest a face comes to a crop edge is 266 px), the longest caption keeps 107 px from the sides, and the 16:9 and
+9:16 clips are made with exactly the same FFmpeg commands as before. The squares add about a third to the
+highlights' clip rendering (10.6 s next to 22.8 s for the other two formats, with a GPU).
+
+Known limits: the trailer is still 16:9 and 9:16 only. When a person leans out of the camera's own picture, the
+square can't show more than the camera did.
+
+Test it:
+
+```bash
+pytest tests/test_square.py tests/test_highlights.py tests/test_strip.py
+pytest tests/test_agent.py -k "square or format"
+```
+
 ### Or use the command line
 
 Create a session folder with the camera files and an `upload.json`:
@@ -732,7 +764,7 @@ Everything is saved inside the session folder and can be downloaded from the res
 | The same video without captions | `program_clean.mp4` |
 | Captions | `captions_ar.srt`, `captions_en.srt`, `captions.vtt` |
 | Transcript with speaker names | download from the results page |
-| Highlight clips, 16:9 and 9:16 | `highlights/` |
+| Highlight clips, 16:9, 9:16 and 1:1 | `highlights/` (`h1_169.mp4`, `h1_916.mp4`, `h1_11.mp4`, ...) |
 | Editor Agent clips | `clips/` |
 | Trailer, 16:9 and 9:16 | `trailer/` |
 | Thumbnails, 1280x720, Arabic and English | `thumbnails/` |

@@ -461,7 +461,8 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
                 parts.append(split_filter(n, n + 1, c["split_x"], size["width"], size["height"], f"s{i}")
                              + f";[s{i}]fps=30,setpts=PTS-STARTPTS[v{i}]")
             else:
-                x = c["crop_x"] if "crop_x" in c else (crop_x or {}).get(c["cam"])    #per shot (2 people) or per camera
+                given = crop_x.get(c["cam"]) if isinstance(crop_x, dict) else crop_x   #per camera, or ONE position
+                x = c["crop_x"] if "crop_x" in c else given    #per shot (2 people) first; ONE = the AI edit with pieces cut
                 crop = CROPS[fmt](x, size["width"], size["height"]) + "," if fmt in CROPS else ""
                 parts.append(f"[{n}:v]{crop}fps=30,setsar=1,setpts=PTS-STARTPTS[v{i}]")
             n += len(cams)

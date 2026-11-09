@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from ..common.config import job_config
-from ..common.io import read_json
+from ..common.io import read_json, write_json
 from ..director.render import render_clip
 
 FIT = 0.25
@@ -128,8 +128,13 @@ def make_clips(s, chosen):
 
 
 def remake_clips(s):
+    """The highlights' clip files again ("Update video": new captions / brand kit), same moments and titles.
+    highlights.json is saved again, so its files list every format made now (older sessions: + 1:1)."""
     if not (s / "highlights.json").exists():
         return []
     items = read_json(s / "highlights.json")
-    return make_clips(s, [({"start": h["start"], "end": h["end"]},
+    made = make_clips(s, [({"start": h["start"], "end": h["end"]},
                            {"title_ar": h["title_ar"], "title_en": h["title_en"], "hook": h["hook"]}) for h in items])
+    made = [{**h, **m} for h, m in zip(items, made)]                     # any other key of an item is kept
+    write_json(s / "highlights.json", made)
+    return made
