@@ -115,6 +115,9 @@ def test_the_stage_on_a_copy_of_the_mock(tmp_path):
     tall = probe(s / items[0]["files"]["9:16"])
     assert (tall["width"], tall["height"]) == (720, 1280)
     assert abs(tall["duration"] - (items[0]["end"] - items[0]["start"])) < 0.2
+    square = probe(s / items[0]["files"]["1:1"])                         # Task 3: a square file for every highlight
+    assert (square["width"], square["height"]) == (720, 720)
+    assert abs(square["duration"] - (items[0]["end"] - items[0]["start"])) < 0.2
 
 
 def test_highlight_eval_on_the_mock():

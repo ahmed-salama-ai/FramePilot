@@ -18,7 +18,9 @@ from .search import CFG, embed as bge_m3, search
 MODES = Literal["conversation", "reaction", "wide_energy", "demo"]
 CONVERSATION = re.compile(r"conversation|talk|حوار|محادث|كلام", re.I)
 FORMATS = {"vertical": "9:16", "portrait": "9:16", "9x16": "9:16", "9/16": "9:16",
-           "horizontal": "16:9", "landscape": "16:9", "16x9": "16:9", "16/9": "16:9"}
+           "horizontal": "16:9", "landscape": "16:9", "16x9": "16:9", "16/9": "16:9",
+           "square": "1:1", "1x1": "1:1", "1/1": "1:1"}
+CROPPED = ("9:16", "1:1")              # formats cut out of a 16:9 camera around a face (render.CROPS)
 
 
 def typed_times(message):
@@ -45,11 +47,17 @@ def speaker_list(s, meta):
              "description": info.get(k, {}).get("description", "")} for k in ids]
 
 
+def and_list(formats):
+    """A highlight's formats for the prompt: "16:9 and 9:16" (older sessions), "16:9, 9:16 and 1:1"."""
+    fs = list(formats) or ["16:9", "9:16"]
+    return " and ".join([", ".join(fs[:-1]), fs[-1]]) if len(fs) > 1 else fs[0]
+
+
 def previous_clips(s, lang):
     """the last 5 clips already made for this video"""
     out = []
     if (s / "highlights.json").exists():
-        out += [{"id": h["id"], "start": h["start"], "end": h["end"], "format": "16:9 and 9:16",
+        out += [{"id": h["id"], "start": h["start"], "end": h["end"], "format": and_list(h.get("files") or {}),
                  "title": h.get(f"title_{lang}") or h.get("title_en", "")} for h in read_json(s / "highlights.json")]
     if (s / "clips.json").exists():
         out += [{k: c.get(k) for k in ("id", "start", "end", "format", "title")} for c in read_json(s / "clips.json")[-5:]]
@@ -141,8 +149,8 @@ class ClipArgs(BaseModel):
     end: float = Field(description="seconds: the end of that moment")
     seconds: float | None = Field(None, gt=0, description='the clip length the user asked for, in seconds ("1 minute" '
                                                           '= 60, "1-2 minutes" = 90), or null')
-    format: Literal["16:9", "9:16"] = Field("16:9", description='"9:16" = vertical (TikTok, Reels, Shorts), '
-                                                               'else "16:9"')
+    format: Literal["16:9", "9:16", "1:1"] = Field("16:9", description='"9:16" = vertical (TikTok, Reels, '
+                                                                      'Shorts), "1:1" = square, else "16:9"')
     focus_speaker: str | None = Field(None, description="SPEAKER_xx of the person to show, or null")
     captions: Literal["ar", "en", "ar+en", "none"] | None = Field(
         None, description='caption languages, only if the user named them ("English subtitles" -> "en", '
@@ -262,8 +270,8 @@ def boosted_shots(job, cam, a, b, target):
 
 def clip_source(job, a, b, fmt, focus, target=100):
     """Where the clip is cut from: a person's close-up camera (target 100 %), the AI edit with that camera boosted
-    (target < 100 %: "mostly" / "more"), or the AI edit ("program"); for 9:16 also where to crop (face position).
-    Returns (source, crop_x, what the viewer sees, notes)."""
+    (target < 100 %: "mostly" / "more"), or the AI edit ("program"); for 9:16 and 1:1 also where to crop (face
+    position). Returns (source, crop_x, what the viewer sees, notes)."""
     f = job.s / "features.parquet"
     feats = (pd.read_parquet(f, columns=["t", "cam", "face_area", "face_x"]) if f.exists()
              else pd.DataFrame(columns=["t", "cam", "face_area", "face_x"]))
@@ -271,21 +279,21 @@ def clip_source(job, a, b, fmt, focus, target=100):
         cam = job.speaker(focus)["camera"]
         if cam is None:
             return "program", None, f"the AI edit ({focus} has no close-up camera)", []
-        mine = people_x(job.s, feats).get(cam, {}).get(focus) if fmt == "9:16" else None   # THAT person (2 on a camera)
+        mine = people_x(job.s, feats).get(cam, {}).get(focus) if fmt in CROPPED else None   # THAT person (2 on a cam)
         if target < 100 and f.exists():
             shots, share, boost = boosted_shots(job, cam, a, b, target)
             crops = None
-            if fmt == "9:16":                                         # each shot on its face; the asked person stays
-                shots = strip_shots(job.s, shots, feats, keep={cam: mine} if mine is not None else None)
+            if fmt in CROPPED:                                        # each shot on its face; the asked person stays
+                shots = strip_shots(job.s, shots, feats, keep={cam: mine} if mine is not None else None, fmt=fmt)
             shows = (f"the AI edit with {focus} (camera {cam}) on screen {share.get(cam, 0)}% of the clip; " +
                      ", ".join(f"camera {c} {p}%" for c, p in share.items()))
             notes = ([f"{focus} is on screen {share.get(cam, 0)}%, the most the editing rules give here "
                       f"(asked {target}%)"] if share.get(cam, 0) < target else [])
             return shots, crops, shows, notes
-        x = (mine if mine is not None else face_x(feats, cam, a, b)) if fmt == "9:16" else None
+        x = (mine if mine is not None else face_x(feats, cam, a, b)) if fmt in CROPPED else None
         return cam, x, f"camera {cam} ({focus})", []
-    if fmt == "9:16" and (job.s / "cuts.json").exists():
-        source, x = vertical_source(job.s, a, b, read_json(job.s / "cuts.json"), feats)
+    if fmt in CROPPED and (job.s / "cuts.json").exists():
+        source, x = vertical_source(job.s, a, b, read_json(job.s / "cuts.json"), feats, fmt=fmt)
         cams = {c["cam"] for c in source} if isinstance(source, list) else set()
         about = ("the AI edit" if source == "program" else f"camera {cams.pop()} (the strip moves to whoever talks)"
                  if len(cams) == 1 else "the AI edit's shots, each from its own camera" if cams
@@ -380,7 +388,7 @@ def make_clip(job, a: ClipArgs):
     if a.focus_speaker and not focus:
         notes.append("the user did not ask to show a particular person: the AI edit")
     prev = job.earlier(a.start, a.end)                                # the format: asked > the earlier clip's > 16:9
-    fmt = job.format or (prev["format"] if prev and prev["format"] in ("16:9", "9:16") else "16:9")
+    fmt = job.format or (prev["format"] if prev and prev["format"] in ("16:9", "9:16", "1:1") else "16:9")
     source, crop_x, shows, more = clip_source(job, start, end, fmt, focus, target)
     notes += more
     old = read_json(s / "clips.json") if (s / "clips.json").exists() else []
@@ -459,8 +467,8 @@ DESCRIPTIONS = {
     "get_speakers": "The people in the video: SPEAKER id, role (host, guest, ...), name, close-up camera and "
                     "talking time.",
     "make_clip": "Render a clip: start and end = a moment that a tool returned; if the user asked for a length, also "
-                 "seconds (the clip is made that long for you). 16:9 or 9:16 (vertical), optionally showing one "
-                 "person (focus_speaker). Edges are moved to whole sentences. Returns the clip file.",
+                 "seconds (the clip is made that long for you). 16:9, 9:16 (vertical) or 1:1 (square), optionally "
+                 "showing one person (focus_speaker). Edges are moved to whole sentences. Returns the clip file.",
     "restyle_video": "Make a new version of the WHOLE video: show one person more (focus_speaker) and/or use one "
                      "editing style (mode). Only when the user wants the whole video changed; takes a few minutes.",
     "list_clips": "The clips and highlights already made for this video (ids, times, titles).",

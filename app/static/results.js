@@ -510,9 +510,11 @@ function renderHighlights(highlightsList) {
 
     const file169 = (h.files && h.files["16:9"]) || "";
     const file916 = (h.files && h.files["9:16"]) || "";
+    const file11 = (h.files && h.files["1:1"]) || "";                // square (older sessions: none)
 
     const dl169Html = file169 ? `<a href="/files/${sid}/${file169}" download class="btn btn-secondary btn-sm">⬇ 16:9</a>` : "";
     const dl916Html = file916 ? `<a href="/files/${sid}/${file916}" download class="btn btn-secondary btn-sm">⬇ 9:16</a>` : "";
+    const dl11Html = file11 ? `<a href="/files/${sid}/${file11}" download class="btn btn-secondary btn-sm">⬇ 1:1</a>` : "";
 
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
@@ -525,7 +527,7 @@ function renderHighlights(highlightsList) {
 
       <p style="color: var(--accent-orange); font-size: 0.85rem; margin: 8px 0;" dir="auto">${escapeHtml(h.hook || "")}</p>
 
-      <div class="highlight-players">
+      <div class="highlight-players${file11 ? " with-square" : ""}">
         ${file169 ? `<div>
           <video class="highlight-video-169" controls preload="metadata" src="/files/${sid}/${file169}"></video>
           <div style="font-size: 0.75rem; color: var(--text-quiet); margin-top: 4px;">${tr("aspect_169", "16:9")}</div>
@@ -534,11 +536,16 @@ function renderHighlights(highlightsList) {
           <video class="highlight-video-916" controls preload="metadata" src="/files/${sid}/${file916}"></video>
           <div style="font-size: 0.75rem; color: var(--text-quiet); margin-top: 4px;">${tr("aspect_916", "9:16")}</div>
         </div>` : ""}
+        ${file11 ? `<div>
+          <video class="highlight-video-11" controls preload="metadata" src="/files/${sid}/${file11}"></video>
+          <div style="font-size: 0.75rem; color: var(--text-quiet); margin-top: 4px;">${tr("aspect_11", "1:1")}</div>
+        </div>` : ""}
       </div>
 
       <div style="display: flex; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
         ${dl169Html}
         ${dl916Html}
+        ${dl11Html}
       </div>
     `;
     container.appendChild(card);

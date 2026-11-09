@@ -779,7 +779,7 @@ bdi {
 
 @media (max-width: 1024px) {
   .results-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);   /* not 1fr: that column grows to its widest child (page wider than a phone) */
   }
 }
 
@@ -937,7 +937,7 @@ bdi {
 /* Highlights Gallery */
 .highlights-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));   /* a phone: one card, full width */
   gap: 20px;
   margin-bottom: 32px;
 }
@@ -969,6 +969,24 @@ bdi {
 .highlight-video-916 {
   width: 100%;
   aspect-ratio: 9 / 16;
+  background: #000000;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+/* With a square file: 16:9 on top, then 9:16 and 1:1 side by side at the same height (9fr : 16fr) */
+.highlight-players.with-square {
+  grid-template-columns: 9fr 16fr;
+  align-items: start;
+}
+
+.highlight-players.with-square > :first-child {
+  grid-column: 1 / -1;
+}
+
+.highlight-video-11 {
+  width: 100%;
+  aspect-ratio: 1 / 1;
   background: #000000;
   border-radius: var(--radius-sm);
   object-fit: cover;
@@ -1202,6 +1220,24 @@ bdi {
   .chat-panel {
     height: 520px;
     position: static;
+  }
+  .nav-wrapper {                  /* logo + buttons on the first row, the page links on a second row */
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .nav-menu {
+    order: 3;
+    width: 100%;
+    gap: 4px;
+  }
+  .nav-item a {
+    padding: 6px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-actions .btn-primary {     /* the same as the "New Project" link on the second row; no room next to the logo */
+    display: none;
   }
 }
 

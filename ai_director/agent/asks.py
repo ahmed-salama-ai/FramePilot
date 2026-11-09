@@ -93,8 +93,15 @@ HORIZONTAL = re.compile(r"horizontal|landscape|youtube(?!\s*shorts)|16\s*[:x/]\s
                         r"\bofo2y", re.I)
 
 
+SQUARE = re.compile(r"square|(?<![\d:])[1١]\s*[:x/×]\s*[1١](?![\d:])|\bمربّ?عة?\b|سكوير|\bmorab+a?3\b", re.I)
+SHAPE = re.compile(r"vertical|portrait|9\s*[:x/]\s*16|عمودي|طولي|horizontal|landscape|16\s*[:x/]\s*9|أفقي|افقي|عرضي",
+                   re.I)                                     # a named shape (not a platform)
+
+
 def asked_format(message):
     v, h = VERTICAL.search(message), HORIZONTAL.search(message)
+    if SQUARE.search(message):          # square / 1:1 / مربع beats a platform name ("a square Instagram post") ...
+        return None if SHAPE.search(message) else "1:1"     # ... but "vertical, not square" is unclear
     return "9:16" if v and not h else "16:9" if h and not v else None
 
 
