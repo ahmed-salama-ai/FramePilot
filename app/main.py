@@ -218,6 +218,42 @@ def check_style(data) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail={"en": e.en, "ar": e.ar})
 
 
+MAX_BLEEP_WORDS, MAX_BLEEP_WORD_CHARS = 200, 60
+
+
+def parse_bleep_words(text: str) -> List[str]:
+    """The extra words typed under "Bleep profanity": one word or phrase per line (commas also separate them),
+    spaces tidied, repeats and punctuation-only entries dropped. Too many or too long -> 400 in English and Arabic."""
+    from ai_director.audio.bleep import normalize
+    out, seen = [], set()
+    for item in re.split(r"[\n,،]+", text or ""):
+        item = " ".join(item.split())
+        key = " ".join(normalize(w) for w in item.split()).strip()
+        if not key or key in seen:
+            continue
+        if len(item) > MAX_BLEEP_WORD_CHARS:
+            raise HTTPException(status_code=400, detail={
+                "en": f"Custom bleep words: each word or phrase can have at most {MAX_BLEEP_WORD_CHARS} characters.",
+                "ar": f"كلمات الكتم الإضافية: الحد الأقصى لكل كلمة أو عبارة {MAX_BLEEP_WORD_CHARS} حرفًا."})
+        seen.add(key)
+        out.append(item)
+    if len(out) > MAX_BLEEP_WORDS:
+        raise HTTPException(status_code=400, detail={
+            "en": f"Custom bleep words: at most {MAX_BLEEP_WORDS} words or phrases.",
+            "ar": f"كلمات الكتم الإضافية: الحد الأقصى {MAX_BLEEP_WORDS} كلمة أو عبارة."})
+    return out
+
+
+def check_filler_mode(mode: str) -> str:
+    """Remove filler words: off, conservative (hesitation sounds) or standard (+ words like يعني); 400 otherwise."""
+    from ai_director.audio.fillers import MODES
+    mode = (mode or "off").strip().lower()
+    if mode not in MODES:
+        raise HTTPException(status_code=400, detail={"en": f"Filler removal must be one of {', '.join(MODES)}.",
+                                                    "ar": "إزالة كلمات الحشو: اختر إيقاف أو محافظ أو قياسي."})
+    return mode
+
+
 def parse_style(text: str) -> Optional[Dict[str, Any]]:
     """style_json from the upload form; empty = no style chosen (default.yaml as it is, the same as Balanced)."""
     if not (text or "").strip():
@@ -355,6 +391,8 @@ async def create_project(
     consent: bool = Form(...),
     people_json: str = Form("[]"),
     bleep_profanity: str = Form("false"),
+    bleep_words: str = Form(""),
+    filler_mode: str = Form("off"),
     style_json: str = Form(""),
     brand_json: str = Form(""),
     logo: Optional[UploadFile] = File(None),
@@ -425,6 +463,8 @@ async def create_project(
     if num_speakers is None and people:
         num_speakers = len(people)
     style = parse_style(style_json)                    # checked before any video is uploaded or downloaded
+    bleep_words = parse_bleep_words(bleep_words)
+    filler_mode = check_filler_mode(filler_mode)
 
     sid = db.new_session_id()
     session_dir = DATA_DIR / sid
@@ -469,9 +509,12 @@ async def create_project(
             "speaker_names": {},
             "people": people,
             "bleep_profanity": str(bleep_profanity).strip().lower() in {"1", "true", "on", "yes"},
+            "filler_mode": filler_mode,
         }
         if style is not None:
             upload_data["style"] = style                   # preset + every value, so the edit can be made again
+        if bleep_words:
+            upload_data["bleep_words"] = bleep_words       # added to configs/profanity.txt for this recording
         (staging_dir / "upload.json").write_text(
             json.dumps(upload_data, ensure_ascii=False, indent=2),
             encoding="utf-8"
@@ -922,7 +965,8 @@ def why_this_shot(sid: str, vid: str):
     session_dir = check_sid(sid)
     v = version_or_400(session_dir, vid)
     cuts = read_json_file(session_dir / v["cuts"]) or []
-    return explain(session_dir, cuts, v.get("removed"))
+    shots = read_json_file(session_dir / v["shots"]) if v.get("shots") else None    # as the render moved them
+    return explain(session_dir, cuts, v.get("removed"), shots=shots)
 
 @app.get("/api/sessions/{sid}/search")
 def search_video(sid: str, q: str = "", mode: str = "words"):

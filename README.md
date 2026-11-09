@@ -56,6 +56,9 @@ plus a close-up camera for each seat.
   minute.
 - **Pause trimming** (optional). Silences longer than 1.5 s are shortened to 0.4 s. The cut is placed at a camera
   change so it can't be seen, and the sound stays in sync.
+- **Filler word removal** (optional, off by default). Hesitation sounds (اه، امم، um) or also words like يعني and
+  مثلا are cut from the picture, the sound and the captions together, only where the cut can't be seen. See
+  [Filler word removal](#10-filler-word-removal).
 - **Cold open** (optional). The video opens with its strongest 6 to 12 seconds, in whole sentences, before the intro.
 - **Why this shot.** Every shot has a short explanation in Arabic and English (who is talking, a reaction, variety,
   nobody clearly on screen...), shown when you hover over the on-air strip.
@@ -83,7 +86,7 @@ plus a close-up camera for each seat.
   fixed gain measured once per recording.
 - **Clean voice** (optional). Rumble removed, background noise reduced and voices made clearer.
 - **Profanity bleeping** (optional, off by default). An editable Egyptian Arabic and English wordlist
-  (`configs/profanity.txt`) is matched to transcript word times. Each hit becomes a 1 kHz beep that cross-fades with
+  (`configs/profanity.txt`, plus any extra words typed at upload) is matched to transcript word times. Each hit becomes a 1 kHz beep that cross-fades with
   the voice (no clicks) in the full video, clips, highlights, trailer, podcast MP3 and the Premiere/DaVinci export,
   and the same words are masked with `***` in SRT, VTT and burned-in captions. Arabic spelling variants (diacritics,
   alef forms, taa marbuta/haa, alef maqsura, tatweel, stretched letters) are normalised, and a listed word is also
@@ -491,9 +494,12 @@ pytest tests/test_downloader.py tests/test_web.py -k "import or ssrf or download
    default and is set per recording.
 2. The words come from `configs/profanity.txt`, one word or phrase per line, `#` for comments. A `profanity.txt` in a
    session folder is used instead of it for that recording only.
-3. List the base form only: `غبي` also catches `الغبي`, `ياغبي`, `غبية`, `غبيات`, and spelling variants such as `غبى` or
+3. To bleep more words in one recording, type them in **Extra words to bleep**, which appears when the box is ticked:
+   one word or phrase per line (commas work too), at most 200, 60 characters each. They are added to the list for
+   that recording only, saved in `upload.json` as `bleep_words`, and matched the same way as the list.
+4. List the base form only: `غبي` also catches `الغبي`, `ياغبي`, `غبية`, `غبيات`, and spelling variants such as `غبى` or
    `غـبـي`. Egyptian sound changes are not guessed, so add them as their own lines (`قليل الأدب` and `أليل الأدب`).
-4. Matching uses the transcript's word times: each hit is padded by `bleep.pad` (70 ms) on both sides, the voice fades
+5. Matching uses the transcript's word times: each hit is padded by `bleep.pad` (70 ms) on both sides, the voice fades
    out and the beep fades in over `bleep.fade` (20 ms), so the word itself is fully covered. The video and the sound
    keep their length, so nothing moves out of sync.
 
@@ -549,6 +555,70 @@ Test it:
 ```bash
 pytest tests/test_styles.py tests/test_job_config.py tests/test_style_report.py
 pytest tests/test_web.py -k style
+```
+
+### 10. Filler word removal
+
+Choose **Remove filler words** on the upload page (or add `"filler_mode"` to `upload.json`). It is off by default and
+is set per recording.
+
+| Mode | Removes | Precision | Recall |
+|---|---|---|---|
+| Off | nothing | | |
+| Conservative | hesitation sounds: اه، امم، همم، ااا، um, uh | 100% (13 of 13) | 9% |
+| Standard | those + discourse words: يعني، مثلا، طيب، بقى، كده، اللي هو، أصلا، بص، like, so... | 97% (105 of 108) | 76% of 138 |
+
+Measured on s01, s02 and s03 against hand labels: two people labelled s01 and s03 separately (they agreed on 79% and
+83% of the words, Cohen's kappa 0.54 and 0.58), then decided their disagreements together; s02 has one person's
+labels. Most fillers in these talks are discourse words, so Conservative is safe but removes little. Gemini, asked the
+same question about the same audio, agreed with the people only about 70% of the time, so it is not used.
+
+**Which words.** `configs/fillers.yaml` lists the words; a `fillers.yaml` in a session folder is used instead of it for
+that recording only. A listed word is not always a filler, so each entry can have conditions, and words that usually
+carry meaning (ايه، صح، تمام، والله...) are never removed:
+
+- a word written with a question mark stays (`يعني؟` = "meaning?"), and so does `يعني ايه` ("what does it mean?");
+- `اه` as the first word of a reply means "yes" and stays, as does `اه طبعا`;
+- `يعني` at the end of a sentence adds emphasis and stays; `كده` is removed only at the end of a phrase, and not in
+  `زي كده`; `طب` after `كلية` is medicine;
+- `امم`، `همم` and `اييييه` must be written stretched: plain `هم` (they) and `ايه` (what) never match;
+- other discourse words need a short pause or a phrase start around them, and none longer than 0.5 s per word
+  (said on purpose). `يعني`، `مثلا` and `بقى` need no pause: inside a phrase they were fillers 25 times out of 27.
+
+The file's comments explain every condition. To check a change to the list against hand labels (a
+`filler_labels.json` in the session folder):
+
+```bash
+python -m eval.filler_eval data/sessions/s01      # precision, recall, every mistake, saved in review/filler_results.md
+```
+
+**How a filler is cut.** The same picture-and-sound cut as pause trimming, so nothing goes out of sync:
+
+1. Each cut edge moves to the quietest 10 ms within 60 ms of the word's edge (the word times are only about 0.1 s
+   exact), then onto a video frame, so the picture and the sound lose exactly the same time.
+2. A camera change at most 0.5 s away moves into the cut: the jump is hidden. Further moves would show the wrong
+   person (on s01, 17 of 30 changes moved up to 2 s did).
+3. Otherwise the cut stays on its camera only if the picture barely changes across it (a mean frame difference of
+   0.06 at most; a camera change is about 0.22). If the jump would show, the filler stays.
+4. The sound crossfades over 25 ms at every cut (pauses too), so there are no clicks.
+5. The cut words leave the captions too. `filler_cuts.json` in the session folder lists every filler the mode chose
+   and what happened to it.
+
+On s01 (10 minutes, 3 cameras) in Standard mode, 61 fillers are chosen and 55 are cut: 17 hidden at a camera change,
+38 on the same camera; 5 stay because the jump would show, 1 is too short to cut. The video is 13.5 s shorter, picture
+and sound are the same length (589.09 s), and against the uncut video they stay in sync at the start, the middle and
+the end (picture 0 frames, sound within 5 ms). No join has a click.
+
+Known limits: a filler the transcript didn't write can't be cut (2 of 140 in the labels); a translated caption line
+keeps its translation of the word; clips, highlights and the trailer are cut from the cameras and keep their fillers.
+The word times are only about 0.1 s exact and people often run words together, so on s01 about half the cut edges
+land in a near-silent spot and the rest in speech, where the crossfade smooths the join.
+
+Test it:
+
+```bash
+pytest tests/test_fillers.py tests/test_filler_cuts.py tests/test_filler_eval.py
+pytest tests/test_web.py -k filler
 ```
 
 ### Or use the command line
@@ -646,6 +716,7 @@ The editing style chosen at upload (`configs/styles.yaml`, see [Editing styles](
 | `audio` | `segment_max_seconds`, `segment_max_chars` | `5`, `42` | the longest caption |
 | `audio` | `translate_model`, `speaker_model`, `english_words_model` | Gemini models | cloud models; `null` uses the local model instead (translation) or turns the step off (English words) |
 | `bleep` | `hz`, `pad`, `fade` | `1000`, `0.07`, `0.02` | beep pitch, extra time around each matched word, fade at each beep edge. The wordlist is `configs/profanity.txt` (or `profanity.txt` in the session folder). Turned on per recording with `bleep_profanity` at upload |
+| `configs/fillers.yaml` | `rule`, `cut`, the word lists | see the file | which words are fillers, and how they are cut. Turned on per recording with `filler_mode` at upload. See [Filler word removal](#10-filler-word-removal) |
 | `ollama` | `text_model`, `vision_model`, `embed_model` | `qwen3:8b`, `qwen3-vl:4b-instruct`, `bge-m3` | local models |
 | `brain` | `every_seconds` | `5` | one scene label every 5 seconds |
 | `agent` | `max_clips`, `clip_seconds`, `timeout` | `3`, `[5, 180]`, `120` | clips per request, allowed clip length, seconds before an LLM request gives up |

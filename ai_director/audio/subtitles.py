@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from ..common.io import h264, quality, read_json, run
-from .bleep import bleep_enabled, load_phrases, mask_text, mask_tokens, wordlist_path
+from .bleep import bleep_enabled, mask_text, mask_tokens, session_phrases
 
 FONT = "Arial" if os.name == "nt" else "Noto Naskh Arabic"
 RLM = "\u200f"
@@ -31,7 +31,7 @@ def chunks(seg, max_chars=42, max_dur=5.0):
 def pieces(session_dir, langs, max_chars, max_dur):
     """Every caption-sized piece of the transcript: start, end , speaker, and its Arabic / English text."""
     meta = read_json(session_dir / "session.json")
-    phrases = load_phrases(wordlist_path(session_dir)) if bleep_enabled(session_dir) else None
+    phrases = session_phrases(session_dir) if bleep_enabled(session_dir) else None
     out = []
     for seg in read_json(session_dir / "transcript.json"):
         parts = chunks(seg, max_chars, max_dur)

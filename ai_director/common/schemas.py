@@ -30,6 +30,8 @@ class Upload(BaseModel):                      # upload.json (web app → ingest)
                                               # voices -> speakers.json (name_source "user") -> name cards
     style: Style | None = None                # None = no style chosen: default.yaml as it is (= Balanced)
     bleep_profanity: bool = False             # replace listed swear words with a beep in the video and clips
+    bleep_words: list[str] = []               # extra words to bleep in this recording, typed at upload
+    filler_mode: Literal["off", "conservative", "standard"] = "off"   # remove filler words (configs/fillers.yaml)
 
 
 class Camera(BaseModel):

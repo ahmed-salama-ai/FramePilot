@@ -211,6 +211,9 @@ def test_agent_failure_does_not_claim_clip_was_created(client, monkeypatch):
     {"consent": "false"},
     {"wide_cam": "4"},
     {"language": "fr"},
+    {"filler_mode": "aggressive"},
+    {"bleep_profanity": "true", "bleep_words": "x" * 61},
+    {"bleep_profanity": "true", "bleep_words": "\n".join(f"word{chr(97 + i // 26)}{chr(97 + i % 26)}" for i in range(201))},
 ])
 def test_upload_rejects_invalid_project_options(client, form):
     data = {"name": "Test project", "consent": "true", **form}
@@ -244,6 +247,7 @@ def test_upload_is_staged_and_writes_contract(client):
         "speaker_names": {},
         "people": [],
         "bleep_profanity": False,
+        "filler_mode": "off",
     }
     assert (session_dir / "raw" / "cam1.mp4").read_bytes() == b"camera one"
     assert (session_dir / "raw" / "cam2.mp4").read_bytes() == b"camera two"
@@ -270,6 +274,42 @@ def test_upload_preserves_bleep_setting(client):
     job = db.get_latest_job(sid)
     if job:
         db.update_job(job["id"], status="done")
+
+
+def test_upload_saves_the_custom_bleep_words(client):
+    files = [
+        ("files", ("cam1.mp4", b"camera one", "video/mp4")),
+        ("files", ("cam2.mp4", b"camera two", "video/mp4")),
+    ]
+    res = client.post("/api/projects", files=files, data={
+        "name": "Bleep words", "consent": "true", "bleep_profanity": "true",
+        "bleep_words": "حمار\n  كلب ،  غبي, damn\r\nDAMN!\n\n!!!\nقليل   الادب"})
+    assert res.status_code == 200
+    sid = res.json()["session_id"]
+    upload = json.loads((SESSIONS / sid / "upload.json").read_text(encoding="utf-8"))
+    assert upload["bleep_words"] == ["حمار", "كلب", "غبي", "damn", "قليل الادب"]
+    job = db.get_latest_job(sid)
+    if job:
+        db.update_job(job["id"], status="done")
+    page = client.get("/new")
+    assert 'id="bleepWords"' in page.text and 'data-i18n="label_bleep_words"' in page.text
+
+
+def test_upload_saves_the_filler_mode(client):
+    files = [
+        ("files", ("cam1.mp4", b"camera one", "video/mp4")),
+        ("files", ("cam2.mp4", b"camera two", "video/mp4")),
+    ]
+    res = client.post("/api/projects", data={"name": "Fillers", "consent": "true", "filler_mode": "Standard"},
+                      files=files)
+    assert res.status_code == 200
+    sid = res.json()["session_id"]
+    assert json.loads((SESSIONS / sid / "upload.json").read_text(encoding="utf-8"))["filler_mode"] == "standard"
+    job = db.get_latest_job(sid)
+    if job:
+        db.update_job(job["id"], status="done")
+    page = client.get("/new")
+    assert 'id="fillerMode"' in page.text and 'value="conservative"' in page.text
 
 
 def test_new_project_page_has_the_editing_style(client):

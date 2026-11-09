@@ -12,6 +12,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const uploadErrorNotice = document.getElementById("uploadErrorNotice");
   const submitBtn = document.getElementById("submitBtn");
 
+  // Custom bleep words: the box shows only while "Bleep profanity" is ticked
+  const bleepToggle = document.getElementById("bleepProfanity");
+  const bleepWordsBox = document.getElementById("bleepWordsBox");
+  if (bleepToggle && bleepWordsBox) {
+    const showBleepWords = () => { bleepWordsBox.hidden = !bleepToggle.checked; };
+    bleepToggle.addEventListener("change", showBleepWords);
+    showBleepWords();
+  }
+
   // Modern (+) Popover & Link Input elements
   const addSourceBtn = document.getElementById("addSourceBtn");
   const addSourceMenu = document.getElementById("addSourceMenu");
@@ -504,6 +513,12 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("people_json", JSON.stringify(readPeople()));
     const bleepEl = document.getElementById("bleepProfanity");
     formData.append("bleep_profanity", bleepEl && bleepEl.checked ? "true" : "false");
+    const bleepWordsEl = document.getElementById("bleepWords");
+    if (bleepEl && bleepEl.checked && bleepWordsEl && bleepWordsEl.value.trim()) {
+      formData.append("bleep_words", bleepWordsEl.value);
+    }
+    const fillerEl = document.getElementById("fillerMode");
+    formData.append("filler_mode", fillerEl ? fillerEl.value : "off");
     if (style.value) formData.append("style_json", JSON.stringify(style.value));
 
     if (typeof readBrandForm === "function") {
