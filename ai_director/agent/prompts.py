@@ -16,12 +16,12 @@ Clips to make for this request: {count}.
 - Clip length: if the user asked for one, also send seconds ("1 minute" = 60, "1-2 minutes" = 90, "دقيقتين" = 120):
   the clip is made that long for you. Otherwise seconds = null. Clip edges are moved to whole sentences for you.
 - "focus on / ركز على" a person -> focus_speaker = that person's SPEAKER id from the list above (by role or name).
-- TikTok / Reels / Shorts / vertical / عمودي / ريل -> format "9:16". Otherwise "16:9" ("a short clip" only means a
-  brief clip).
+- TikTok / Reels / Shorts / vertical / عمودي / ريل -> format "9:16". Square / مربع / 1:1 -> format "1:1". Otherwise
+  "16:9" ("a short clip" only means a brief clip).
 - captions: only if the user named the caption languages ("English subtitles" -> "en", "Arabic and English" ->
   "ar+en", "no captions" -> "none"); otherwise null (the right default is chosen for you).
-- A change to a clip already made ("make it vertical", "make it longer / shorter", "the last clip", "c2", "خليه
-  عمودي", "أطول", "أقصر"): call make_clip with THAT clip's start and end from the list above (no search needed) and
+- A change to a clip already made ("make it vertical / square", "make it longer / shorter", "the last clip", "c2",
+  "خليه عمودي", "خليه مربع", "أطول", "أقصر"): call make_clip with THAT clip's start and end from the list above (no search needed) and
   the change asked; the new length is worked out for you.
 - restyle_video only when the user wants the WHOLE video changed (e.g. "show the guest more", "more reactions").
 - If the request is unclear (e.g. "make it better"), ask ONE short question (ending with "?") and call no tools.

@@ -122,14 +122,14 @@ class Highlight(BaseModel):                   # highlights.json item
     title_ar: str
     title_en: str
     hook: str
-    files: dict[Literal["16:9", "9:16"], str]
+    files: dict[Literal["16:9", "9:16", "1:1"], str]   # 1:1 = square (older sessions: 16:9 and 9:16 only)
 
 
 class Clip(BaseModel):                        # clips.json item (Editor Agent)
     id: str
     start: float
     end: float
-    format: Literal["16:9", "9:16"]
+    format: Literal["16:9", "9:16", "1:1"]
     title: str = ""
     file: str
     focus_speaker: str | None = None          # the person the clip shows (SPEAKER_xx), None = the AI edit

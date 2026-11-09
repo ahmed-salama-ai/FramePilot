@@ -495,6 +495,43 @@ def test_the_code_reads_the_format():
     assert {m: asked_format(m) for m in formats} == formats
 
 
+def test_the_code_reads_square():
+    """Task 3: square / 1:1 / مربع -> "1:1"; it beats a platform name, but not another named shape."""
+    from ai_director.agent.asks import asked_format
+    from ai_director.agent.tools import and_list
+    formats = {"a square clip about salaries": "1:1", "make it 1:1": "1:1", "1x1 please": "1:1",
+               "اعمل كليب مربع عن المرتبات": "1:1", "خليه مربع": "1:1", "عايز فيديو بشكل مربّع": "1:1",
+               "صورة مربعة للانستا": "1:1", "سكوير": "1:1", "e3mel clip morab3": "1:1", "اعمله ١:١": "1:1",
+               "a square Instagram post": "1:1",                             # "Instagram" alone would be 9:16
+               "make it vertical, not square": None, "مربع ولا عمودي؟": None,   # two shapes: unclear
+               "اعمل كليب عن المربع الذهبي": None,                             # a topic word, not the shape
+               "from 1:10 to 1:40": None, "the 21:1 ratio": None}
+    assert {m: asked_format(m) for m in formats} == formats
+    assert ClipArgs(start=10, end=40, format="square").format == "1:1"
+    assert and_list({"16:9": "a", "9:16": "b"}) == "16:9 and 9:16" == and_list({})          # older highlights
+    assert and_list({"16:9": "a", "9:16": "b", "1:1": "c"}) == "16:9, 9:16 and 1:1"
+
+
+def test_a_square_chat_clip(s):
+    """"اعمل كليب مربع" -> a 1:1 file (the LLM's 16:9 is ignored: the code reads the format); "make it square" and
+    "make it longer" follow-ups keep the earlier clip's times / its square format."""
+    from ai_director.ingest.probe import probe
+    ask = scripted([("search_transcript", {"query": "المرتبات"})],
+                   [("make_clip", {"start": 22.6, "end": 52.0, "format": "16:9", "title": "نصيحة المرتبات"})], "تمام")
+    out = chat(s, "اعمل كليب مربع عن المرتبات", ask=ask, embed=fake_embed)
+    c = out["clips"][0]
+    v = probe(s / c["file"])
+    assert c["format"] == "1:1" and (v["width"], v["height"]) == (720, 720) and abs(v["duration"] - 29.4) < 0.2
+    TypeAdapter(list[schemas.Clip]).validate_python(read_json(s / "clips.json"))       # follows the contract
+    assert "- نصيحة المرتبات (c2): 29 ثانية، مربع 1:1، الترجمة: عربي" in out["reply"]
+    ask = scripted([("make_clip", {"start": 38.0, "end": 52.0})], "ok")               # c1 = 38-52 s, 9:16
+    c = chat(s, "make it square", ask=ask, render=False, embed=fake_embed)["clips"][0]
+    assert (c["start"], c["end"], c["format"], c["parent"]) == (38.0, 52.0, "1:1", "c1")
+    ask = scripted([("make_clip", {"start": 22.6, "end": 52.0})], "ok")               # c2 (square): longer
+    c = chat(s, "make it longer", ask=ask, render=False, embed=fake_embed)["clips"][0]
+    assert c["format"] == "1:1" and c["parent"] == "c2"
+
+
 def test_a_timeout_reply(s):
     class ReadTimeout(Exception):
         pass

@@ -21,9 +21,9 @@ TEXT = {
            "gave_up": "Sorry, I couldn't finish that. Please ask in a simpler way.",
            "made": "Done!"}}
 CLIP_WORDS = {
-    "ar": {"16:9": "أفقي 16:9", "9:16": "عمودي 9:16", "sec": "ثانية", "captions": "الترجمة", "focus": "مع التركيز على",
+    "ar": {"16:9": "أفقي 16:9", "9:16": "عمودي 9:16", "1:1": "مربع 1:1", "sec": "ثانية", "captions": "الترجمة", "focus": "مع التركيز على",
            "ar": "عربي", "en": "إنجليزي", "ar+en": "عربي + إنجليزي", "none": "بدون", "sep": "، "},
-    "en": {"16:9": "horizontal 16:9", "9:16": "vertical 9:16", "sec": "s", "captions": "captions", "focus": "showing",
+    "en": {"16:9": "horizontal 16:9", "9:16": "vertical 9:16", "1:1": "square 1:1", "sec": "s", "captions": "captions", "focus": "showing",
            "ar": "Arabic", "en": "English", "ar+en": "Arabic + English", "none": "none", "sep": ", "}}
 LISTY = re.compile(r"^\s*(?:[-•*]|\d+[.)]\s|#)|\S*\.mp4|\]\(")
 

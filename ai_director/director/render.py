@@ -21,6 +21,7 @@ WORDS = (CONFIG.get("captions") or {}).get("word_by_word") or {}
 VOICE = (CONFIG.get("voice") or {}).get("clean")
 COLD = CONFIG.get("cold_open") or {"enabled": False}
 HOLD = 100
+SQUARE_SIDE = 24          #1:1 captions: 24 of 384 = 6 % from each side (16:9 and 9:16: 10 = 2.6 %)
 
 
 def split_filter(i, j, xs, w, h, out):
@@ -184,18 +185,20 @@ def word_steps(item, tmap, a, b, hold_until_next=False):
 
 
 def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertical=False, window=None, words=None,
-              removed=None):
+              removed=None, square=False):
     """ONE .ass subtitle file: the captions (brand colours, the same layout as the old SRT burn: a 384x288 canvas,
     Encoding=-1 for right-to-left lines) and, for the whole video, the name cards (captions=False: only the cards, for
     the video without captions). Returns how many cards.
-    langs = "ar", "en" or "ar+en"; vertical = 9:16 sizes; words = word-by-word (None = configs captions);
+    langs = "ar", "en" or "ar+en"; vertical = 9:16 sizes; square = 1:1 sizes and wider side margins;
+    words = word-by-word (None = configs captions);
     removed = pauses cut out of the video (times move earlier); window = (a, b) in the video's time: only that part,
     starting at 0 (a clip, the cold open)."""
     from ai_director.audio.subtitles import FONT, RLM, caption_items
     s = Path(session_dir)
     meta = read_json(s / "session.json")
     brand = load_brand(s)
-    f = caption_fields(brand, vertical)
+    f = caption_fields(brand, vertical, square)
+    side = SQUARE_SIDE if square else 10               #left/right margin on the 384-wide canvas
     if words is None:
         words = bool(WORDS.get("clips" if window and not cuts else "program"))
     colour = ass_bgr(brand["captions"]["word_color"])
@@ -203,7 +206,7 @@ def write_ass(session_dir, path, cuts=None, langs="ar+en", captions=True, vertic
     arabic = meta["language"] == "ar"
     styles = [
         f"Style: Caption,{FONT},{f['FontSize']},{f['PrimaryColour']},&H000000FF,{f['OutlineColour']},"
-        f"{f['BackColour']},0,0,0,0,100,100,0,0,{f['BorderStyle']},{f['Outline']},{f['Shadow']},2,10,10,30,-1",
+        f"{f['BackColour']},0,0,0,0,100,100,0,0,{f['BorderStyle']},{f['Outline']},{f['Shadow']},2,{side},{side},30,-1",
         #name card: dark box, bottom-left (English) / bottom-right (Arabic), above two lines of captions
         f"Style: Card,{FONT},13,&H00FFFFFF,&H000000FF,&H33141414,&H33141414,1,0,0,0,100,100,0,0,3,3,0,"
         f"{3 if arabic else 1},16,16,92,-1",
@@ -385,12 +388,26 @@ def add_captions(session_dir, inp="program_nocaps.mp4", out="program.mp4", cuts=
     finish(Path(session_dir), inp, out, cuts, clean, removed=removed)
 
 
+def window_x(crop_x, w, sw):
+    """The left edge of a crop window sw pixels wide around the face (crop_x 0..1; None = the middle), kept inside."""
+    return (w - sw) // 2 if crop_x is None else int(min(max(crop_x * w - sw / 2, 0), w - sw))
+
+
 def crop_916(crop_x, w=1280, h=720):
     """w x h -> a 9:16 strip around the face (crop_x 0..1; None = the middle) -> h x (h * 16/9).
     1280x720 -> 404x720 -> 720x1280; 1920x1080 -> 608x1080 -> 1080x1920."""
     sw = round(h * 9 / 16 / 2) * 2
-    x = (w - sw) // 2 if crop_x is None else int(min(max(crop_x * w - sw / 2, 0), w - sw))
-    return f"crop={sw}:{h}:{x}:0,scale={h}:{round(h * 16 / 9 / 2) * 2}"
+    return f"crop={sw}:{h}:{window_x(crop_x, w, sw)}:0,scale={h}:{round(h * 16 / 9 / 2) * 2}"
+
+
+def crop_11(crop_x, w=1280, h=720):
+    """w x h -> a square around the face (crop_x 0..1; None = the middle), the full height, no scaling.
+    1920x1080 -> 1080x1080; 1280x720 -> 720x720. The window is 56 % of a 16:9 width (the 9:16 strip: 32 %)."""
+    side = min(w, h) // 2 * 2
+    return f"crop={side}:{side}:{window_x(crop_x, w, side)}:{(h - side) // 2}"
+
+
+CROPS = {"9:16": crop_916, "1:1": crop_11}             # the formats cut out of a 16:9 camera around the face
 
 
 def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop_x=None, langs="ar+en"):
@@ -398,8 +415,8 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
     meta = read_json(session_dir / "session.json")
     if not 0 <= start < end <= meta["duration"] + 0.05:
         raise ValueError(f"clip {start}-{end} s is not inside the video (0-{meta['duration']} s)")
-    if fmt not in ("16:9", "9:16"):
-        raise ValueError(f"fmt must be '16:9' or '9:16', not {fmt!r}")
+    if fmt not in ("16:9", "9:16", "1:1"):
+        raise ValueError(f"fmt must be '16:9', '9:16' or '1:1', not {fmt!r}")
     if source == "program" and program_removed(session_dir):
         source = program_shots(session_dir, start, end)
     shots = source if isinstance(source, list) else None
@@ -410,17 +427,17 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
     (session_dir / out).parent.mkdir(parents=True, exist_ok=True)
     (session_dir / "tmp").mkdir(exist_ok=True)
     vf = []
-    if fmt == "9:16" and not shots:
-        vf.append(crop_916(crop_x, size["width"], size["height"]))
+    if fmt in CROPS and not shots:
+        vf.append(CROPS[fmt](crop_x, size["width"], size["height"]))
     ass = session_dir / "tmp" / f"{Path(out).stem}.ass"
     if langs != "none":                #caption times shifted so the clip starts at 0; 9:16 sizes scale with the height
-        write_ass(session_dir, ass, langs=langs, vertical=fmt == "9:16", window=(start, end))
+        write_ass(session_dir, ass, langs=langs, vertical=fmt == "9:16", window=(start, end), square=fmt == "1:1")
         vf.append(f"subtitles=tmp/{ass.name}")
     ref = soundtrack(session_dir)                                                  #the sound of the reference camera (bleeped when on)
     if shots:                          #one input per shot, joined in ONE FFmpeg run, then the captions on top
         cmd, parts, n = ["ffmpeg", "-y"], [], 0                 #n = inputs so far (a split shot has 2)
         for i, c in enumerate(shots):
-            cams = c["split"] if c.get("split") and fmt == "16:9" else [c["cam"]]   #9:16: never split, its main camera
+            cams = c["split"] if c.get("split") and fmt == "16:9" else [c["cam"]]   #9:16 / 1:1: never split, main camera
             for cam in cams:
                 cmd += ["-ss", f"{c['start']:.3f}", "-t", f"{c['end'] - c['start']:.3f}", "-i", f"video/cam{cam}.mp4"]
             if len(cams) == 2:
@@ -428,7 +445,7 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
                              + f";[s{i}]fps=30,setpts=PTS-STARTPTS[v{i}]")
             else:
                 x = c["crop_x"] if "crop_x" in c else (crop_x or {}).get(c["cam"])    #per shot (2 people) or per camera
-                crop = crop_916(x, size["width"], size["height"]) + "," if fmt == "9:16" else ""
+                crop = CROPS[fmt](x, size["width"], size["height"]) + "," if fmt in CROPS else ""
                 parts.append(f"[{n}:v]{crop}fps=30,setsar=1,setpts=PTS-STARTPTS[v{i}]")
             n += len(cams)
         graph = (";".join(parts) + ";" + "".join(f"[v{i}]" for i in range(len(shots)))

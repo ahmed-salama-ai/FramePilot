@@ -66,7 +66,7 @@ if avatar_dir.is_dir():
     app.mount("/avatar", StaticFiles(directory=avatar_dir, html=True), name="avatar")
 
 templates = Jinja2Templates(directory=ROOT / "app" / "templates")
-templates.env.globals["static_version"] = "20261104d"
+templates.env.globals["static_version"] = "20261109c"
 
 # Initialize database on startup
 db.init()

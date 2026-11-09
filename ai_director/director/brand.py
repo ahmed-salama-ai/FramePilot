@@ -5,6 +5,8 @@ from ai_director.common.schemas import Brand
 
 FONT_SIZE = {"small": 13, "medium": 15, "large": 18}
 FONT_SIZE_916 = {"small": 8, "medium": 9, "large": 11}
+FONT_SIZE_11 = {"small": 13, "medium": 15, "large": 18}   # 1:1 is as high as 16:9 (1080): 56 px medium, about the
+                                                          # 9:16 size for the same 1080 px width
 
 
 def load_brand(session_dir):
@@ -24,11 +26,11 @@ def ass_colour(hex_rgb, alpha=0):
     return f"&H{alpha:02X}{h[4:6]}{h[2:4]}{h[0:2]}".upper()
 
 
-def caption_fields(b, vertical=False):
+def caption_fields(b, vertical=False, square=False):
     """Default white text, 50% dark box"""
     c = b["captions"]
     box = c["box"]
-    return {"FontSize": (FONT_SIZE_916 if vertical else FONT_SIZE)[c["size"]],
+    return {"FontSize": (FONT_SIZE_11 if square else FONT_SIZE_916 if vertical else FONT_SIZE)[c["size"]],
             "PrimaryColour": ass_colour(c["text_color"]),
             "OutlineColour": ass_colour(c["box_color"], 0x80 if box else 0),
             "BackColour": ass_colour(c["box_color"], 0x80 if box else 0),

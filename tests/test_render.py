@@ -67,7 +67,7 @@ def test_render_clip_refuses_bad_times(tmp_path):
         with pytest.raises(ValueError):
             render_clip(s, a, b, "clips/x.mp4")
     with pytest.raises(ValueError):
-        render_clip(s, 1.0, 5.0, "clips/x.mp4", fmt="1:1")
+        render_clip(s, 1.0, 5.0, "clips/x.mp4", fmt="4:5")                         # 1:1 is a real format now
 
 
 def test_make_cuts_boost_and_mode(tmp_path):
