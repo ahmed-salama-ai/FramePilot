@@ -86,7 +86,8 @@ def test_clip_events_from_the_ai_edit_and_its_captions():
 
 
 def test_the_trailer_gets_every_join_and_the_end_card():
-    effects = plan_trailer("unused", [3.9, 2.7, 9.5, 9.3, 8.4], "medium")      # joins 2.7 s apart, 5 effects in 37 s
+    effects = plan_trailer("unused", [0, 60, 120, 180, 240], [3.9, 2.7, 9.5, 9.3, 8.4], "medium")   # joins 2.7 s
+                                                                                                    # apart, 5 in 37 s
     assert [(e["t"], e["kind"], e["sound"]) for e in effects] == [
         (3.9, "cut", "whoosh_1.ogg"), (6.6, "cut", "whoosh_2.ogg"), (16.1, "cut", "whoosh_1.ogg"),
         (25.4, "cut", "whoosh_2.ogg"), (33.8, "title", "hit_1.ogg")]            # no count limit, no gap: all of them
@@ -138,10 +139,25 @@ def test_the_upload_turns_effects_on(tmp_path):
         assert job_volume(tmp_path) == volume, choice
 
 
-def test_the_volume_sets_how_far_under_the_speech():
-    effects = [{"at": 2.0, "sound": "pop_1.ogg"}, {"at": 9.9, "sound": "whoosh_1.ogg"}]
-    assert [e["gain_db"] for e in set_gains(effects, "unused", "medium")] == [1.0, 1.0]   # -14 LUFS - 6 dB + 21
-    assert [e["gain_db"] for e in set_gains(effects, "unused", "low")] == [-3.0, -3.0]    # the same while people talk
+def test_the_volume_sets_the_level_and_effects_are_lower_while_somebody_talks(monkeypatch):
+    from ai_director.director import pauses
+    monkeypatch.setattr(pauses, "busy_spans", lambda s: [[110.0, 112.0]])
+    effects = [{"at": 2.0, "sound": "pop_1.ogg"}, {"at": 9.9, "sound": "pop_1.ogg"}]
+    clip = [(0.0, 30.0, 100.0)]                                                 # clip time 0-30 s = recording 100-130 s
+    set_gains(effects, "unused", "medium", clip)
+    assert [e["talking"] for e in effects] == [False, True]                     # the pop at 9.9 s runs into 110 s
+    assert [e["gain_db"] for e in effects] == [4.0, 1.0]   # talking: -14 LUFS - 6 dB + 21 (the files); a pause: +3 dB
+    set_gains(effects, "unused", "low", clip)
+    assert [e["gain_db"] for e in effects] == [0.0, -3.0]
+
+
+def test_nobody_talks_on_the_trailers_end_card(monkeypatch):
+    from ai_director.director import pauses
+    monkeypatch.setattr(pauses, "busy_spans", lambda s: [[0.0, 600.0]])        # talking all the time
+    effects = plan_trailer("unused", [100.0, 300.0], [6.0002, 5.5002], "medium")  # real lengths: a bit over
+    assert [(e["kind"], e["talking"]) for e in effects] == [("cut", True), ("title", False)]
+    assert effects[-1]["t"] == 11.5 and effects[-1]["gain_db"] == effects[0]["gain_db"] + 3   # 11.5004 rounded down:
+                                                                                              # still the card
 
 
 needs_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is not on PATH")
@@ -200,7 +216,7 @@ def test_effects_play_on_time_at_their_level(session):
     loud = samples(render_clip(session, 5.0, 45.0, "clips/loud.mp4", sfx="high"))
     assert 20 * np.log10(np.abs(loud).max()) < -0.5                             # high: the limiter, no clipping
     effects = plan_clip(session, 5.0, 45.0, "16:9", "program", "ar+en", "low")
-    assert len(effects) == 4                                                    # whooshes, while somebody talks
+    assert len(effects) == 4 and all(e["talking"] for e in effects)             # whooshes, while somebody talks
     n = min(len(on), len(off))
     added = on[:n] - off[:n]                                                    # the effects alone: same speech
     wants, spans = [], []
@@ -243,4 +259,4 @@ def test_the_trailer_gets_its_effects_after_the_parts_are_joined(session, monkey
         sound = samples(session / out["files"][fmt])
         assert abs(card_at - (len(sound) / 48000 - trailer.CFG["end_card"])) < 0.05     # the end card's first frame
         got, want = heard(sound, titles[0])                                     # the end card is silent: the hit alone
-        assert abs(got - want) < 1.5, (round(got, 1), round(want, 1))
+        assert not titles[0]["talking"] and abs(got - want) < 1.5, (round(got, 1), round(want, 1))

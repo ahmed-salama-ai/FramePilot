@@ -1,6 +1,7 @@
 import json
 import re
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 import yaml
@@ -13,7 +14,7 @@ SOUND = {"cut": "whoosh", "title": "hit", "caption": "pop"}       # event -> sou
 PER_FAMILY = {f: len(list(SFX_DIR.glob(f"{f}_*.ogg"))) for f in SOUND.values()}  # files of a family: take turns
 PRIORITY = {"cut": 0, "caption": 1}                                 # in a clip, when two compete, the cut wins
 CFG = {"per_minute": 6, "min_gap": 3.0, "edge": 0.5, "lead": {"cut": 0.05, "title": 0.0, "caption": 0.0},
-       "levels": {"low": -10, "medium": -6, "high": -2},
+       "levels": {"low": -10, "medium": -6, "high": -2}, "duck": 3,
        **((yaml.safe_load((CONFIGS / "default.yaml").read_text(encoding="utf-8")) or {}).get("sfx") or {})}
 VOLUMES = tuple(CFG["levels"])
 LIBRARY_LOUDNESS = -21.0          # every file in assets/sfx: its loudest 400 ms, LUFS momentary (see tests/test_sfx.py)
@@ -46,29 +47,45 @@ def speech_level(session_dir):
     return lufs
 
 
-def set_gains(effects, session_dir, volume, cfg=None, speech=None):
-    """Each effect's gain, so its loudest 400 ms sits levels[volume] dB under the speech loudness. speech = the speech
-    loudness where the effects are added: after the loudness filter, its target (video.loudness). The same while people
-    talk: in a talk show somebody nearly always does, and a short effect under the voice must still be heard."""
+@lru_cache(maxsize=None)
+def sound_length(name):
+    return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                                 str(SFX_DIR / name)], capture_output=True, text=True).stdout.strip())
+
+
+def set_gains(effects, session_dir, volume, parts, cfg=None, speech=None):
+    """Each effect's gain: its loudest 400 ms levels[volume] dB under the speech loudness while somebody talks or
+    laughs (busy_spans) at any moment of it, and `duck` dB louder in a pause - lowered while someone speaks, without
+    getting lost under the voice. parts = [(t0, t1, start)]: the file's time t0..t1 is the recording from `start` on (a
+    clip: one part; the trailer: one per moment; after them, the end card: nobody talks). speech = the speech loudness
+    where the effects are added: after the loudness filter, its target (video.loudness)."""
+    from ai_director.director.pauses import busy_spans
     from ai_director.director.render import LOUDNESS
     cfg = {**CFG, **(cfg or {})}
     if speech is None:
         speech = LOUDNESS if LOUDNESS is not None else speech_level(session_dir)
+    busy = busy_spans(session_dir)
+    base = speech + cfg["levels"][volume] - LIBRARY_LOUDNESS
     for e in effects:
-        e["gain_db"] = round(speech + cfg["levels"][volume] - LIBRARY_LOUDNESS, 2)
+        a, b = e["at"], e["at"] + sound_length(e["sound"])
+        heard = [(r + max(a, t0) - t0, r + min(b, t1) - t0) for t0, t1, r in parts if a < t1 and t0 < b]
+        e["talking"] = any(x < hi and lo < y for lo, hi in heard for x, y in busy)
+        e["gain_db"] = round(base + (0 if e["talking"] else cfg["duck"]), 2)
     return effects
 
 
 def plan_clip(session_dir, start, end, fmt, source, langs, volume, cfg=None):
     """The effects a clip plays, with their sounds, start times and gains (clip time)."""
     chosen = choose(clip_events(session_dir, start, end, fmt, source, langs), end - start, cfg)
-    return set_gains(chosen, session_dir, volume, cfg)
+    return set_gains(chosen, session_dir, volume, [(0.0, end - start, start)], cfg)
 
 
-def plan_trailer(session_dir, lengths, volume, cfg=None):
-    """The trailer's effects (trailer time). lengths = the rendered moments' real lengths, in order (a frame more or
-    less than end - start: where they really join)."""
-    return set_gains(with_sounds(trailer_events(lengths), cfg), session_dir, volume, cfg)
+def plan_trailer(session_dir, starts, lengths, volume, cfg=None):
+    """The trailer's effects (trailer time). starts = where each moment starts in the recording; lengths = the
+    rendered moments' real lengths, in order (a frame more or less than end - start: where they really join)."""
+    bounds = [round(sum(lengths[:k]), 3) for k in range(len(lengths) + 1)]      # rounded like the events' times
+    parts = [(bounds[k], bounds[k + 1], s) for k, s in enumerate(starts)]
+    return set_gains(with_sounds(trailer_events(lengths), cfg), session_dir, volume, parts, cfg)
 
 
 def mix_lines(effects, first_input, speech, out):

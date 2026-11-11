@@ -243,7 +243,8 @@ def render_trailer(s, moments, title_ar, title_en):
                 source, crop_x = vertical_source(s, a, b, cuts, feats)
                 render_clip(s, a, b, part, fmt="9:16", source=source, crop_x=crop_x, sfx=False)
             parts.append(part)
-        effects = plan_trailer(s, [probe(s / p)["duration"] for p in parts], volume) if volume else None
+        effects = plan_trailer(s, [a for a, _ in moments], [probe(s / p)["duration"] for p in parts],
+                               volume) if volume else None
         out = f"trailer/trailer_{tag}.mp4"
         join(s, parts, out, lang, title_ar if lang == "ar" else title_en, brand, effects=effects)
         for p in parts:

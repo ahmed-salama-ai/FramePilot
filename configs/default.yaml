@@ -61,6 +61,7 @@ sfx:                       # sound effects on clips, highlights and the trailer 
   edge: 0.5                # none in the first or last half second of a clip
   lead: {cut: 0.05, title: 0.0, caption: 0.0}   # the sound starts this early, so its loudest part lands on the event
   levels: {low: -10, medium: -6, high: -2}        # the effect's loudest 400 ms, dB under the speech loudness (the upload's volume)
+  duck: 3                  # dB louder in a pause: effects are lowered while somebody talks or laughs
 
 perception:
   workers: 3

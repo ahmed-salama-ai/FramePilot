@@ -677,10 +677,11 @@ starts 50 ms early so its loudest part lands on the cut. The trailer has no limi
 one, and nothing inside the moments does.
 
 **How loud.** The volume sets how far each effect's loudest 400 ms (EBU momentary loudness) sits under the speech's
--14 LUFS: Low 10 dB, Medium 6 dB, High 2 dB. The effects are added after the loudness filter and the voice cleaner
-(which would dull them), and they are not lowered while people talk: in a talk show somebody nearly always does. A
-limiter at -1 dBFS keeps an effect on a loud word from clipping. With effects off, clips and the trailer are made with
-exactly the same FFmpeg commands as before.
+-14 LUFS while somebody talks or laughs: Low 10 dB, Medium 6 dB, High 2 dB. In a pause, and on the trailer's end card,
+an effect plays 3 dB louder (`duck`): effects are lowered while someone speaks, but only a little, because a bigger drop
+made them inaudible in a talk show, where somebody nearly always talks. The effects are added after the loudness
+filter and the voice cleaner (which would dull them). A limiter at -1 dBFS keeps an effect on a loud word from
+clipping. With effects off, clips and the trailer are made with exactly the same FFmpeg commands as before.
 
 **The sounds** are in `assets/sfx/`: two whooshes, two pops and one hit, all CC0, with each file's source and license
 in `SOURCES.md`. Each is trimmed, faded (3 ms in, 10 ms out) and set so its loudest 400 ms is -21 LUFS (Ogg Vorbis,
@@ -691,8 +692,9 @@ first pick, a deep thump, lost about 23 dB without bass, the bell 1 dB.
 On s01 (4 highlights in 3 formats and the trailer in 2, at Medium): 36 effects in 7.2 minutes of highlights (5 a
 minute) and 5 in the trailer. Every sound starts within 20 ms of its moment, and a whoosh is loudest 10-40 ms before its
 cut. The effects sit a median 6-7 dB (pops) and 2-3 dB (whooshes) under the speech at that moment, 10 dB at most, and
-about the same through a phone-speaker filter. The loudest peak is -0.9 dBFS at Medium and at High. Effects add 0.5-0.9 s
-to a highlight clip (+26% for the 12 clips) and 0.2 s to each trailer format.
+about the same through a phone-speaker filter. 3 of the 46 fell in a pause (one whoosh and the trailer's end-card bell)
+and play 3 dB louder there. The loudest peak is -0.8 dBFS. Effects add 0.5-0.9 s to a highlight clip (+26% for the 12
+clips) and 0.2 s to each trailer format.
 
 Known limits: 9:16 and 1:1 clips rarely change picture, so they get mostly pops. The whooshes are short (0.11 s).
 
@@ -799,7 +801,7 @@ The editing style chosen at upload (`configs/styles.yaml`, see [Editing styles](
 | `audio` | `translate_model`, `speaker_model`, `english_words_model` | Gemini models | cloud models; `null` uses the local model instead (translation) or turns the step off (English words) |
 | `bleep` | `hz`, `pad`, `fade` | `1000`, `0.07`, `0.02` | beep pitch, extra time around each matched word, fade at each beep edge. The wordlist is `configs/profanity.txt` (or `profanity.txt` in the session folder). Turned on per recording with `bleep_profanity` at upload |
 | `configs/fillers.yaml` | `rule`, `cut`, the word lists | see the file | which words are fillers, and how they are cut. Turned on per recording with `filler_mode` at upload. See [Filler word removal](#10-filler-word-removal) |
-| `sfx` | `per_minute`, `min_gap`, `edge`, `levels` | `6`, `3.0`, `0.5`, low -10 / medium -6 / high -2 | sound effects in clips and highlights: at most this many a minute, seconds apart, none this near the edges; dB under the speech for each volume. Turned on per recording with `sound_effects` at upload. See [Sound effects](#12-sound-effects) |
+| `sfx` | `per_minute`, `min_gap`, `edge`, `levels`, `duck` | `6`, `3.0`, `0.5`, low -10 / medium -6 / high -2, `3` | sound effects in clips and highlights: at most this many a minute, seconds apart, none this near the edges; dB under the speech for each volume while people talk; dB louder in a pause. Turned on per recording with `sound_effects` at upload. See [Sound effects](#12-sound-effects) |
 | `ollama` | `text_model`, `vision_model`, `embed_model` | `qwen3:8b`, `qwen3-vl:4b-instruct`, `bge-m3` | local models |
 | `brain` | `every_seconds` | `5` | one scene label every 5 seconds |
 | `agent` | `max_clips`, `clip_seconds`, `timeout` | `3`, `[5, 180]`, `120` | clips per request, allowed clip length, seconds before an LLM request gives up |
