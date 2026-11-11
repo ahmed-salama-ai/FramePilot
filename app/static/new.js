@@ -478,6 +478,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ---------- Form Submission & Project Creation ----------
+  let renderUploadProgress = null;   // set while an upload runs: redraws its progress texts
+  document.addEventListener("framepilot:lang", () => { if (renderUploadProgress) renderUploadProgress(); });
+
   form.addEventListener("submit", async e => {
     e.preventDefault();
     if (uploadErrorNotice) uploadErrorNotice.style.display = "none";
@@ -561,89 +564,158 @@ document.addEventListener("DOMContentLoaded", () => {
       formData.append("items_order_json", JSON.stringify(orderedItems));
       formData.append("links_json", JSON.stringify(linkItems));
 
+      // The server downloads the links after the form has arrived; the page follows each camera with this id
+      const progressId = Array.from(crypto.getRandomValues(new Uint8Array(12)),
+        b => b.toString(16).padStart(2, "0")).join("");
+      formData.append("progress_id", progressId);
+
       if (submitBtn) submitBtn.disabled = true;
       if (uploadProgressContainer) uploadProgressContainer.style.display = "block";
 
-      // Build per-camera multiCamProgressList
+      // One row per camera: "Camera 1: name (source)" ... status
       const multiCamProgressList = document.getElementById("multiCamProgressList");
       if (multiCamProgressList) {
         multiCamProgressList.innerHTML = "";
         selectedItems.forEach((item, idx) => {
           const row = document.createElement("div");
           row.id = `camProgress_${idx}`;
-          row.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05); font-size: 0.83rem;";
-          const isLocal = item.type === "file";
-          const icon = isLocal ? "💻" : (item.source === "gdrive" ? "📁" : "🔗");
+          row.style.cssText = "display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05); font-size: 0.83rem;";
+          const icon = item.type === "file" ? "💻" : (item.source === "gdrive" ? "📁" : "🔗");
           row.innerHTML = `
           <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-            <span style="font-weight: 700; color: var(--accent-orange); white-space: nowrap;">Cam ${idx + 1}:</span>
+            <span class="cam-label" style="font-weight: 700; color: var(--accent-orange); white-space: nowrap;"></span>
             <span style="color: var(--text-bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(item.name)}</span>
-            <span style="color: var(--text-quiet); font-size: 0.78rem;">(${icon} ${isLocal ? "Local" : "Cloud"})</span>
+            <span style="color: var(--text-quiet); font-size: 0.78rem; white-space: nowrap;">(${icon} <span class="cam-source"></span>)</span>
           </div>
-          <span class="cam-status" style="color: var(--accent-orange); font-weight: 600; white-space: nowrap;">Preparing... ⏳</span>
+          <span class="cam-status" style="font-weight: 600; white-space: nowrap;"></span>
         `;
           multiCamProgressList.appendChild(row);
         });
       }
 
-      const hasLinks = linkItems.length > 0;
-      if (uploadStatusText) {
-        uploadStatusText.textContent = hasLinks
-          ? "Streaming cloud recordings to server and verifying..."
-          : "Uploading local video recordings to server...";
+      const hasLocal = selectedItems.some(item => item.type === "file");
+      const linkPositions = selectedItems.map((item, idx) => (item.type === "link" ? idx : -1)).filter(idx => idx >= 0);
+      let uploadFraction = 0;   // the browser sending the form (local files travel inside it), 0..1
+      let serverCams = null;    // per camera from /api/import/progress: {state, done, total}
+      let finished = "";        // "ok" | "failed" once the server has answered
+      let failedIdx = -1;       // the camera the server was working on when it failed
+
+      const ORANGE = "var(--accent-orange)", GREEN = "#4ade80", RED = "#ff6b7d", QUIET = "var(--text-quiet)";
+
+      function formatBytes(bytes) {
+        const mb = 1024 * 1024, gb = 1024 * mb;
+        return bytes >= gb ? `${(bytes / gb).toFixed(1)} ${t("unit_gb")}` : `${Math.round(bytes / mb)} ${t("unit_mb")}`;
+      }
+
+      // How far one camera is, 0..1. A link reaches 1 only once the server has checked the video.
+      function camFraction(item, idx) {
+        if (finished === "ok") return 1;
+        if (item.type === "file") return uploadFraction;
+        const cam = serverCams && serverCams[idx];
+        if (!cam) return 0;
+        if (cam.state === "ready") return 1;
+        if (cam.state === "checking") return 0.99;
+        if (cam.state === "downloading" && cam.total) return Math.min(cam.done / cam.total, 1) * 0.98;
+        return 0;
+      }
+
+      function camStatus(item, idx) {
+        if (finished === "ok") return [t("cam_ready"), GREEN];
+        if (idx === failedIdx) return [t("cam_failed"), RED];
+        if (item.type === "file") {
+          return uploadFraction >= 1 ? [t("cam_uploaded"), GREEN]
+            : [t("cam_uploading", { pct: Math.floor(uploadFraction * 100) }), ORANGE];
+        }
+        if (failedIdx >= 0) return idx < failedIdx ? [t("cam_ready"), GREEN] : [t("cam_not_started"), QUIET];
+        const cam = serverCams && serverCams[idx];
+        if (!cam || cam.state === "waiting") return [t("cam_waiting"), QUIET];
+        if (cam.state === "ready") return [t("cam_ready"), GREEN];
+        if (cam.state === "checking") return [t("cam_checking"), ORANGE];
+        if (cam.total) {
+          const pct = Math.min(99, Math.floor((cam.done / cam.total) * 100));
+          return [t("cam_downloading", { pct, done: formatBytes(cam.done), total: formatBytes(cam.total) }), ORANGE];
+        }
+        return [t("cam_downloading_nosize", { done: formatBytes(cam.done) }), ORANGE];
+      }
+
+      function topStatus() {
+        if (finished === "ok") return t("up_done");
+        if (finished === "failed") return t("up_failed");
+        if (hasLocal && uploadFraction < 1) return t("up_uploading");
+        const current = linkPositions.findIndex(idx => !(serverCams && serverCams[idx] && serverCams[idx].state === "ready"));
+        if (current < 0) return t("up_checking");
+        const cam = serverCams && serverCams[linkPositions[current]];
+        if (cam && cam.state === "checking") return t("up_checking");
+        return t("up_downloading", { n: current + 1, total: linkPositions.length });
+      }
+
+      function renderProgress() {
+        const fractions = selectedItems.map(camFraction);
+        const pct = Math.floor((fractions.reduce((a, b) => a + b, 0) / fractions.length) * 100);
+        if (uploadBarFill) uploadBarFill.style.width = pct + "%";
+        if (uploadPercent) uploadPercent.innerHTML = `<bdi>${pct}%</bdi>`;
+        if (uploadStatusText) uploadStatusText.textContent = topStatus();
+        selectedItems.forEach((item, idx) => {
+          const row = document.getElementById(`camProgress_${idx}`);
+          if (!row) return;
+          row.querySelector(".cam-label").textContent = `${t("camera")} ${idx + 1}:`;
+          row.querySelector(".cam-source").textContent =
+            t(item.type === "file" ? "src_local" : (item.source === "gdrive" ? "src_drive" : "src_link"));
+          const [text, color] = camStatus(item, idx);
+          const statusSpan = row.querySelector(".cam-status");
+          statusSpan.textContent = text;
+          statusSpan.style.color = color;
+        });
+      }
+      renderUploadProgress = renderProgress;   // redrawn in the new language if the user switches
+      renderProgress();
+
+      // Ask the server every second how far the downloads are, from the moment the form has arrived
+      let pollTimer = null;
+      let polling = false;
+      async function pollProgress() {
+        if (polling || finished) return;
+        polling = true;
+        try {
+          const res = await fetch(`/api/import/progress/${progressId}`, { cache: "no-store" });
+          if (res.ok && !finished) {
+            serverCams = (await res.json()).cameras;
+            renderProgress();
+          }
+        } catch (err) {
+          // the upload request itself reports any error
+        } finally {
+          polling = false;
+        }
+      }
+      function startPolling() {
+        if (!linkPositions.length || pollTimer || finished) return;
+        pollProgress();
+        pollTimer = setInterval(pollProgress, 1000);
+      }
+      function stopPolling() {
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
       }
 
       const xhr = new XMLHttpRequest();
       xhr.upload.onprogress = ev => {
-        if (ev.lengthComputable && uploadBarFill && uploadPercent) {
-          const pct = Math.round((ev.loaded / ev.total) * 100);
-          uploadBarFill.style.width = pct + "%";
-          uploadPercent.innerHTML = `<bdi>${pct}%</bdi>`;
-
-          if (pct >= 100) {
-            if (uploadStatusText) {
-              uploadStatusText.textContent = hasLinks
-                ? "Streaming and verifying videos with ffprobe directly on server..."
-                : "Verifying recordings and initializing pipeline...";
-            }
-            if (multiCamProgressList) {
-              selectedItems.forEach((item, idx) => {
-                const row = document.getElementById(`camProgress_${idx}`);
-                if (row) {
-                  const statusSpan = row.querySelector(".cam-status");
-                  if (statusSpan) {
-                    if (item.type === "file") {
-                      statusSpan.style.color = "#4ade80";
-                      statusSpan.textContent = "Uploaded & Probed ✅";
-                    } else {
-                      statusSpan.style.color = "var(--accent-orange)";
-                      statusSpan.textContent = "Streaming directly to disk... ⏳";
-                    }
-                  }
-                }
-              });
-            }
-          }
-        }
+        if (!ev.lengthComputable) return;
+        uploadFraction = ev.total ? ev.loaded / ev.total : 1;
+        renderProgress();
+        if (uploadFraction >= 1) startPolling();
+      };
+      xhr.upload.onload = () => {
+        uploadFraction = 1;
+        renderProgress();
+        startPolling();
       };
 
       xhr.onload = () => {
+        stopPolling();
         if (xhr.status >= 200 && xhr.status < 300) {
-          if (multiCamProgressList) {
-            selectedItems.forEach((item, idx) => {
-              const row = document.getElementById(`camProgress_${idx}`);
-              if (row) {
-                const statusSpan = row.querySelector(".cam-status");
-                if (statusSpan) {
-                  statusSpan.style.color = "#4ade80";
-                  statusSpan.textContent = "Ready & Verified ✅";
-                }
-              }
-            });
-          }
-          if (uploadStatusText) {
-            uploadStatusText.textContent = "All camera recordings verified! Redirecting to Director...";
-          }
+          finished = "ok";
+          renderProgress();
           try {
             const res = JSON.parse(xhr.responseText);
             setTimeout(() => {
@@ -654,6 +726,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (submitBtn) submitBtn.disabled = false;
           }
         } else {
+          finished = "failed";
+          failedIdx = parseInt(xhr.getResponseHeader("X-Failed-Camera") || "0", 10) - 1;   // -1: not a camera
+          renderProgress();
           let errDetail = "Upload / Download failed";
           try {
             const res = JSON.parse(xhr.responseText);
@@ -668,6 +743,9 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       xhr.onerror = () => {
+        stopPolling();
+        finished = "failed";
+        renderProgress();
         showError("Network connection interrupted during upload.");
         if (submitBtn) submitBtn.disabled = false;
       };

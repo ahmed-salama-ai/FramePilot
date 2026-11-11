@@ -67,8 +67,9 @@ def test_validate_video_file_fails_on_dummy(tmp_path):
     from app.downloader import validate_video_file
     dummy = tmp_path / "fake.mp4"
     dummy.write_text("this is not a real video")
-    with pytest.raises(DownloadError):
+    with pytest.raises(DownloadError) as exc:
         validate_video_file(dummy)
+    assert "ffprobe" not in exc.value.message          # the page shows this message: no tool names
 
 
 def test_validate_video_file_succeeds_on_real_video(tmp_path):
@@ -264,6 +265,40 @@ async def test_stream_download_gdrive_large_file_form_confirmation(tmp_path, mon
     assert bytes_written == len(b"VIDEO_PAYLOAD_OK")
     assert target.read_bytes() == b"VIDEO_PAYLOAD_OK"
     assert len(requests_seen) == 2
+
+
+@pytest.mark.anyio
+async def test_stream_download_reports_progress(tmp_path, monkeypatch):
+    """The upload page shows each link's download: bytes so far, the size from Content-Length, then the check."""
+    import threading
+    from app import downloader
+    import httpx
+
+    check_threads = []
+    monkeypatch.setattr(downloader, "validate_video_file", lambda p: check_threads.append(threading.get_ident()))
+    seen = []
+
+    payload = b"V" * (300 * 1024)                       # 3 pieces of 128 KB (the last one shorter)
+    sized = httpx.MockTransport(lambda request: httpx.Response(200, headers={"Content-Type": "video/mp4"},
+                                                               content=payload))
+    await downloader.stream_download_to_file("https://example.com/cam.mp4", tmp_path / "cam.mp4",
+                                             progress_callback=lambda *a: seen.append(a), transport=sized)
+    assert seen[0] == ("downloading", 0, len(payload))
+    done = [d for stage, d, _ in seen if stage == "downloading"]
+    assert len(done) >= 4 and done == sorted(done) and done[-1] == len(payload)
+    assert seen[-1] == ("checking", len(payload), len(payload))
+    assert check_threads and check_threads[0] != threading.get_ident()   # ffprobe does not block the server
+
+    async def chunks():                                 # no Content-Length: bytes only, no total
+        yield b"A" * 1000
+        yield b"B" * 1000
+
+    seen.clear()
+    unsized = httpx.MockTransport(lambda request: httpx.Response(200, content=chunks()))
+    await downloader.stream_download_to_file("https://example.com/cam2.mp4", tmp_path / "cam2.mp4",
+                                             progress_callback=lambda *a: seen.append(a), transport=unsized)
+    assert all(total is None for _, _, total in seen)
+    assert seen[-1] == ("checking", 2000, None)
 
 
 @pytest.mark.anyio
