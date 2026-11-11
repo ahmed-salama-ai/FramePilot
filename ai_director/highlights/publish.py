@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from ..audio.bleep import Bleeped
 from ..audio.speakers import transcript_text
 from ..common.io import read_json, session_from_argv, write_json
 from ..common.schemas import Publish
@@ -126,20 +127,25 @@ def make_publish(s, highlights=None, ask=None):
         highlights = read_json(s / "highlights.json") if (s / "highlights.json").exists() else []
     brief = [{"id": h["id"], "start": h["start"], "end": h["end"], "title_ar": h.get("title_ar", ""),
               "title_en": h.get("title_en", "")} for h in highlights]
+    b = Bleeped(s)                                                     # bleeped words: told to the model, then starred
+    note = b.note()
     prompt = PROMPT.format(title=up.get("name") or meta.get("id", ""), language=meta["language"],
                            highlights=json.dumps(brief, ensure_ascii=False), transcript=transcript_text(rows))
-    a = (ask or default_ask)(prompt)
-    chapters = clean_chapters(a.chapters, rows, meta["duration"])
+    a = (ask or default_ask)(prompt + (f"\n{note}" if note else ""))
+    chapters = [{**c, "title_ar": b.star(c["title_ar"]), "title_en": b.star(c["title_en"])}
+                for c in clean_chapters(a.chapters, rows, meta["duration"])]
     ids = {h["id"] for h in highlights}
-    posts = [{"highlight": p.highlight, "text_ar": p.text_ar.strip(), "text_en": p.text_en.strip(),
-              "hashtags": [hashtag(x) for x in p.hashtags if x.strip()][:5]}
-             for p in a.posts if p.highlight in ids]
+    posts = [{"highlight": p.highlight, "text_ar": b.star(p.text_ar.strip()), "text_en": b.star(p.text_en.strip()),
+              "hashtags": [t for t in (b.star(hashtag(x)) for x in p.hashtags if x.strip()) if t.strip("#*_")][:5]}
+             for p in a.posts if p.highlight in ids]                   # a hashtag that was only a bleeped word: gone
     tags = tags_of(posts)
-    kp_ar, kp_en = [k.strip() for k in a.key_points_ar if k.strip()][:5], [k.strip() for k in a.key_points_en if k.strip()][:5]
-    out = {"chapters": chapters, "summary_ar": a.summary_ar.strip(), "summary_en": a.summary_en.strip(),
+    kp_ar = [b.star(k.strip()) for k in a.key_points_ar if k.strip()][:5]
+    kp_en = [b.star(k.strip()) for k in a.key_points_en if k.strip()][:5]
+    sum_ar, sum_en = b.star(a.summary_ar.strip()), b.star(a.summary_en.strip())
+    out = {"chapters": chapters, "summary_ar": sum_ar, "summary_en": sum_en,
            "key_points_ar": kp_ar, "key_points_en": kp_en, "posts": posts,
-           "description_ar": description(a.summary_ar, chapters, kp_ar, tags, "ar"),
-           "description_en": description(a.summary_en, chapters, kp_en, [t for t in tags if t.isascii()], "en")}
+           "description_ar": description(sum_ar, chapters, kp_ar, tags, "ar"),
+           "description_en": description(sum_en, chapters, kp_en, [t for t in tags if t.isascii()], "en")}
     Publish.model_validate(out)                                        # follows the contract
     write_json(s / "publish.json", out)
     return out

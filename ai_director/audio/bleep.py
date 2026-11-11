@@ -266,3 +266,127 @@ def soundtrack(session_dir):
         return cam
     write_bleeped_audio(s)
     return "audio_bleeped.wav" if (s / "audio_bleeped.wav").exists() else cam
+
+
+# A bleeped word in the translation: the translator wraps the words that mean it in [[ ]]. The transcript keeps the
+# real words; the row only remembers which translation words to star (row[MARKS]), for the text it was made from.
+MARKS = "translation_bleep"
+BRACKETS = re.compile(r"(\[\[|\]\])")
+
+
+def mark_source(tokens, phrases):
+    """The row's words with each bleeped word / phrase in [[ ]] (what the translator sees); None = nothing bleeped."""
+    hits = match_tokens(tokens, phrases)
+    if not hits:
+        return None
+    words = [t["w"] for t in tokens]
+    for h in hits:
+        words[h["i"]] = "[[" + words[h["i"]]
+        words[h["i"] + h["n"] - 1] += "]]"
+    return " ".join(words)
+
+
+def split_marks(text):
+    """'You are a [[failure]].' -> ('You are a failure.', [3]): the text without [[ ]] and the positions of the words
+    that were inside them (a mark inside a word hides the whole word). Stray brackets are dropped."""
+    chars, inside = [], False
+    for piece in BRACKETS.split(str(text or "")):
+        if piece in ("[[", "]]"):
+            inside = piece == "[["
+        else:
+            chars += [(c, inside) for c in piece]
+    plain = "".join(c for c, _ in chars)
+    words, hide = [], []
+    for m in re.finditer(r"\S+", plain):
+        if any(chars[k][1] for k in range(m.start(), m.end())):
+            hide.append(len(words))
+        words.append(m.group())
+    return " ".join(words), hide
+
+
+def saved_marks(row):
+    """The translation words to star for this row's bleeped words, or None when nothing is saved or it was saved for
+    another text or translation (edited since)."""
+    m = row.get(MARKS)
+    if m and m.get("text") == row.get("text") and m.get("translation") == row.get("translation"):
+        return m.get("hide") or []
+    return None
+
+
+def save_marks(row, hide):
+    row[MARKS] = {"text": row["text"], "translation": row["translation"], "hide": sorted(hide)}
+
+
+def starred_translation(row):
+    """The row's translation as words, the saved bleeped ones starred."""
+    words = str(row.get("translation") or "").split()
+    hide = set(saved_marks(row) or [])
+    return [stars(w) if i in hide else w for i, w in enumerate(words)]
+
+
+PUBLIC_TOKEN = re.compile(r"[^\s_]+")             # a hashtag's words are joined by _: each one is checked
+
+
+def translated_phrases(rows):
+    """The translation words saved for the bleeped words (row[MARKS]), each run of marked words as one phrase:
+    'failure', 'private' ... the English (or Arabic) side of what is bleeped."""
+    found = []
+    for r in rows:
+        words, hide = str(r.get("translation") or "").split(), saved_marks(r) or []
+        run = []
+        for i in sorted(hide) + [None]:
+            if run and (i is None or i != run[-1] + 1):
+                found.append(" ".join(words[k] for k in run))
+                run = []
+            if i is not None and i < len(words):
+                run.append(i)
+    return found
+
+
+def bare(text):
+    return re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip()
+
+
+class Bleeped:
+    """Keeps a session's bleeped words out of the text people read (titles, posts, the article, ...): note() tells the
+    model which words (what was said and its saved translation), star() stars the ones that still get through.
+    Bleeping off (or no session): note() is '' and star() changes nothing."""
+
+    def __init__(self, session_dir):
+        s = Path(session_dir) if session_dir else None
+        self.phrases, self.said = [], []
+        if s is None or not bleep_enabled(s):
+            return
+        rows = read_json(s / "transcript.json") if (s / "transcript.json").exists() else []
+        self.phrases = session_phrases(s)
+        for text in translated_phrases(rows):
+            p = phrases_from([text])
+            if p and p[0] not in self.phrases:
+                self.phrases += p
+        self.phrases.sort(key=len, reverse=True)
+        heard = [bare(h["text"]) for h in match_transcript(rows, self.phrases)] + translated_phrases(rows)
+        self.said = list(dict.fromkeys(w for w in map(bare, heard) if w))
+
+    def note(self):
+        """One line for a prompt ('' when nothing bleeped was said)."""
+        if not self.said:
+            return ""
+        return ("These words are bleeped in the video, so never write them, or a word that means the same, in any "
+                "language: " + ", ".join(self.said) + ".")
+
+    def _hits(self, text):
+        tokens = list(PUBLIC_TOKEN.finditer(str(text or "")))
+        found = match_tokens([{"w": m.group(), "start": 0, "end": 0} for m in tokens], self.phrases)
+        return [tokens[j] for h in found for j in range(h["i"], h["i"] + h["n"])]
+
+    def found(self, text):
+        """The bleeped words in text ([] = none)."""
+        return [m.group() for m in self._hits(text)] if self.phrases else []
+
+    def star(self, text):
+        """The bleeped words starred in place; spaces, lines, Markdown and the rest of a hashtag are kept."""
+        if not self.phrases or not text:
+            return text
+        for m in sorted(self._hits(text), key=lambda m: m.start(), reverse=True):
+            text = text[:m.start()] + stars(m.group()) + text[m.end():]
+        return text
