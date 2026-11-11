@@ -5,6 +5,7 @@ from pathlib import Path
 from ..common.io import read_json, write_json
 from .bleep import write_bleeped_audio
 from .subtitles import write_all_captions
+from .translate import refresh_bleep_marks
 
 
 def history(s):
@@ -68,6 +69,10 @@ def edit_rows(session_dir, changes):
     for new in changed:
         by_id[new["id"]].clear()
         by_id[new["id"]].update(new)
+    try:                                                                  #a bleeped word: star its translation too
+        refresh_bleep_marks(s, [by_id[new["id"]] for new in changed])
+    except Exception as e:                                                #never lose the edit over it
+        print(f"  WARNING: bleeped words in the translation not updated ({type(e).__name__}: {e})")
     write_json(s / "transcript.json", rows)
     _after_change(s)
     return len(changed)

@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from ..common.io import h264, quality, read_json, run
-from .bleep import bleep_enabled, mask_text, mask_tokens, session_phrases
+from .bleep import bleep_enabled, mask_text, mask_tokens, session_phrases, starred_translation
 
 FONT = "Arial" if os.name == "nt" else "Noto Naskh Arabic"
 RLM = "\u200f"
@@ -35,7 +35,8 @@ def pieces(session_dir, langs, max_chars, max_dur):
     out = []
     for seg in read_json(session_dir / "transcript.json"):
         parts = chunks(seg, max_chars, max_dur)
-        tr = seg.get("translation", "").split()
+        #the bleeped words' translation starred before the row is shared out over its pieces
+        tr = starred_translation(seg) if phrases is not None else seg.get("translation", "").split()
         for k, p in enumerate(parts):
             orig = " ".join(w["w"] for w in p)
             if len(parts) == 1:                                       #the usual case the whole translation

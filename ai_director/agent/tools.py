@@ -5,6 +5,7 @@ from typing import Literal
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from ..audio.bleep import Bleeped
 from ..common.io import read_json, read_jsonl, write_json
 from ..director.filler_cuts import plan_removed
 from ..director.render import add_captions, lead_in, render_clip, render_program
@@ -84,6 +85,7 @@ class Job:
             self.wanted = None                        # "30 seconds longer": the number is how much to add, not the length
         self.previous = previous_clips(self.s, self.lang)          # a follow-up may reuse an earlier clip (reuses)
         self.clips, self.title_tries = [], 0
+        self.bleeped = Bleeped(self.s)                            # words bleeped in this video: never in a title
 
     def saw(self, ranges):
         self.seen += [(float(a), float(b)) for a, b in ranges]
@@ -376,11 +378,14 @@ def make_clip(job, a: ClipArgs):
         notes.append(f"moved to whole sentences: {start}-{end} s")
     title = a.title.strip()
     problem = title_problem(title, job.lang, " ".join(r["text"] for r in segs if start <= r["start"] < end))
+    if not problem and job.bleeped.found(title):
+        problem = f"the title has a word that is bleeped in this video ({', '.join(job.bleeped.found(title))})"
     if problem and job.title_tries < 2:                               # the LLM writes it again (at most twice)
         job.title_tries += 1
         raise ValueError(f"{problem}. Call make_clip again with a title of 3-7 catchy words in {NAMES[job.lang]}")
     if problem or not title:
         title = auto_title(job, segs, start, end)
+    title = job.bleeped.star(title)
     captions = (asked_captions(job.message)                           # what the user typed, read by the code
                 or (a.captions if CAPTION.search(job.message) else None)   # ... or by the LLM (words we don't know)
                 or default_captions(job.lang))                        # not asked: English -> ar+en, Arabic -> ar

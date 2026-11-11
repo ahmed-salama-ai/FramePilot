@@ -309,6 +309,23 @@ def test_bad_titles_are_written_again(s):
     assert out["clips"][0]["title"] == "الشركات بتحب تشوف شغل حقيقي طب"         # 3rd time: the first words said
 
 
+def test_a_title_with_a_bleeped_word_is_written_again_or_starred(s):
+    write_json(s / "session.json", {**read_json(s / "session.json"), "bleep_profanity": True})
+    write_json(s / "upload.json", {**read_json(s / "upload.json"), "bleep_profanity": True,
+                                   "bleep_words": ["salary", "companies"]})
+    ask = scripted([("search_transcript", {"query": "salary"})],
+                   [("make_clip", {"start": 22.6, "end": 52.0, "title": "First-year salary advice"})],
+                   [("make_clip", {"start": 22.6, "end": 52.0, "title": "What your first job pays"})], "Done")
+    out = chat(s, "Make a clip about salaries", ask=ask, render=False, embed=fake_embed)
+    assert out["steps"][1]["summary"].startswith("error: the title has a word that is bleeped")
+    assert out["clips"][0]["title"] == "What your first job pays"
+    bad = [("make_clip", {"start": 22.6, "end": 52.0, "title": "Salary talk"})]
+    ask = scripted([("search_transcript", {"query": "salary"})], bad, bad, bad, "Done")
+    out = chat(s, "Make a clip about salaries", ask=ask, render=False, embed=fake_embed)
+    title = out["clips"][0]["title"]                                  # 3rd time: the first words said, starred
+    assert title.startswith("********* like to see") and "salary" not in title.lower()
+
+
 def test_an_answer_in_the_wrong_language_is_asked_again(s):
     ask = scripted([("search_transcript", {"query": "salary"})],
                    [("make_clip", {"start": 22.6, "end": 52.0, "title": "Salary advice"})],

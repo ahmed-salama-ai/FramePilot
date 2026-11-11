@@ -2,6 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from ..audio.bleep import Bleeped
 from ..audio.speakers import transcript_text
 from ..common.io import read_json, session_from_argv, write_json
 from ..common.schemas import Publish
@@ -61,10 +62,12 @@ def make_article(s, ask=None):
     s = Path(s)
     meta = read_json(s / "session.json")
     up = read_json(s / "upload.json") if (s / "upload.json").exists() else {}
+    b = Bleeped(s)                                                     # bleeped words: told to the model, then starred
+    note = b.note()
     prompt = PROMPT.format(title=up.get("name") or meta.get("id", ""), language=meta["language"],
                            people=people_line(s), transcript=transcript_text(read_json(s / "transcript.json")))
-    a = (ask or default_ask)(prompt)
-    ar, en = clean(a.article_ar), clean(a.article_en)
+    a = (ask or default_ask)(prompt + (f"\n{note}" if note else ""))
+    ar, en = b.star(clean(a.article_ar)), b.star(clean(a.article_en))
     if not ar and not en:
         raise ValueError("the model wrote no article")
     p = read_json(s / "publish.json") if (s / "publish.json").exists() else {}
