@@ -780,6 +780,7 @@ def test_create_project_rejects_ssrf_links(client):
     })
     assert res.status_code in (400, 403)
     assert "localhost" in res.text or "Security violation" in res.text
+    assert res.headers.get("X-Failed-Camera") == "1"    # the upload page marks camera 1 "Failed"
 
 
 def test_create_project_mixed_order_preserves_camera_positions(client, monkeypatch):
@@ -828,6 +829,50 @@ def test_create_project_mixed_order_preserves_camera_positions(client, monkeypat
     assert (session_raw / "cam1.mp4").read_bytes() == b"LINK_DATA_CAM1"
     assert (session_raw / "cam2.mp4").read_bytes() == b"FILE_DATA_A"
     assert (session_raw / "cam3.mp4").read_bytes() == b"FILE_DATA_B"
+
+
+def test_create_project_reports_link_progress(client, monkeypatch):
+    """While the server downloads a link, /api/import/progress/{id} shows every camera; afterwards the id is gone."""
+    import io
+    from app import downloader, main
+    import ai_director.ingest.probe as probe_mod
+
+    seen = {}
+
+    async def fake_stream_download(url, target_path, max_bytes=None, timeout=None, progress_callback=None):
+        seen["ids"] = list(main.IMPORT_PROGRESS)
+        progress_callback("downloading", 0, 2000)
+        progress_callback("downloading", 1500, 2000)
+        if seen["ids"]:
+            seen["downloading"] = await main.import_progress(seen["ids"][0])
+            progress_callback("checking", 2000, 2000)
+            seen["checking"] = await main.import_progress(seen["ids"][0])
+        target_path.write_bytes(b"LINK")
+        return 4
+
+    monkeypatch.setattr(downloader, "stream_download_to_file", fake_stream_download)
+    monkeypatch.setattr(probe_mod, "probe", lambda p: {"duration": 15.0, "fps": 30, "width": 1920, "height": 1080})
+
+    def upload(progress_id):
+        return client.post("/api/projects", data={
+            "name": "Progress Test", "consent": "true", "language": "en", "progress_id": progress_id,
+            "items_order_json": json.dumps([{"type": "file", "index": 0},
+                                            {"type": "link", "url": "https://example.com/cam2.mp4"}]),
+        }, files=[("files", ("cam1.mp4", io.BytesIO(b"FILE"), "video/mp4"))])
+
+    assert client.get("/api/import/progress/progress-test-01").status_code == 404
+    res = upload("progress-test-01")
+    assert res.status_code == 200, res.text
+    assert seen["ids"] == ["progress-test-01"]
+    assert seen["downloading"] == {"cameras": [{"state": "ready", "done": 0, "total": None},
+                                               {"state": "downloading", "done": 1500, "total": 2000}]}
+    assert seen["checking"]["cameras"][1] == {"state": "checking", "done": 2000, "total": 2000}
+    assert client.get("/api/import/progress/progress-test-01").status_code == 404   # gone once the upload is done
+
+    seen.clear()
+    res = upload("../not-an-id")                        # a bad id is ignored: no progress kept, the upload still works
+    assert res.status_code == 200, res.text
+    assert seen["ids"] == []
 
 
 

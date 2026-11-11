@@ -19,6 +19,7 @@ DEFAULT_TIMEOUT = 3600.0  # 60 minutes generous overall deadline for large recor
 CONNECT_TIMEOUT = 15.0
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
+NOT_A_VIDEO = "The link does not point to a playable video. Please check that it opens a video file (MP4, MOV, MKV, AVI)."
 
 
 class DownloadError(Exception):
@@ -273,6 +274,8 @@ async def stream_download_to_file(
     Handles Google Drive large-file virus-scan confirmation forms (drive.usercontent.google.com).
     Re-validates SSRF on every redirect.
     Enforces a strict overall deadline across all redirects and data streaming.
+    progress_callback(stage, done, total), if given: ("downloading", bytes so far, Content-Length or None)
+    while the file arrives, then ("checking", bytes, total) before the video check.
     """
     validate_url_security(url)
 
@@ -295,6 +298,7 @@ async def stream_download_to_file(
 
     client_timeout = httpx.Timeout(min(timeout, 60.0), connect=CONNECT_TIMEOUT)
     total_bytes = 0
+    expected_bytes: Optional[int] = None    # Content-Length of the video, for the progress shown on the page
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -427,8 +431,12 @@ async def stream_download_to_file(
                         # Generous deadline proportional to file size (at least 60 minutes)
                         dynamic_timeout = max(timeout, (cl_int / (1024 * 1024 * 1024)) * 3600.0)
                         deadline = max(deadline, start_time + dynamic_timeout)
+                        expected_bytes = cl_int if cl_int > 0 else None
                     except ValueError:
                         pass
+
+                if progress_callback:
+                    progress_callback("downloading", 0, expected_bytes)
 
                 try:
                     with open(target_path, "wb") as f:
@@ -460,7 +468,7 @@ async def stream_download_to_file(
                                 )
                             f.write(chunk)
                             if progress_callback:
-                                progress_callback(total_bytes)
+                                progress_callback("downloading", total_bytes, expected_bytes)
                 finally:
                     await resp.aclose()
 
@@ -471,7 +479,10 @@ async def stream_download_to_file(
                 target_path.unlink(missing_ok=True)
             raise DownloadError("Download failed: The downloaded file is empty.")
 
-        validate_video_file(target_path)
+        if progress_callback:
+            progress_callback("checking", total_bytes, expected_bytes)
+        # ffprobe is a blocking subprocess: run it in a thread so the server keeps answering (progress polls)
+        await asyncio.to_thread(validate_video_file, target_path)
         return total_bytes
 
     except Exception:
@@ -488,11 +499,11 @@ def validate_video_file(path: Path) -> None:
         if not info or info.get("duration", 0) <= 0:
             if path.exists():
                 path.unlink(missing_ok=True)
-            raise DownloadError("Downloaded file does not contain a valid video stream or duration is 0.")
+            raise DownloadError(NOT_A_VIDEO)
     except DownloadError:
         raise
     except Exception as e:
         if path.exists():
             path.unlink(missing_ok=True)
         logger.error(f"ffprobe validation failed: {e}")
-        raise DownloadError("Downloaded file is not a valid video file (ffprobe could not decode video stream).")
+        raise DownloadError(NOT_A_VIDEO)

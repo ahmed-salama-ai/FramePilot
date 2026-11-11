@@ -47,6 +47,12 @@ tempfile.tempdir = str(UPLOAD_TMP)
 
 AGENT_LOCK = threading.Lock()                    # one Editor Agent request at a time (two at once = same clip id)
 
+# Per-camera progress of the running POST /api/projects requests, keyed by the id the upload page sends.
+# The page asks /api/import/progress/{id} every second while the server downloads the links.
+# In memory: the web server is one process (start_web.bat).
+IMPORT_PROGRESS: Dict[str, Dict[str, Any]] = {}
+PROGRESS_ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
+
 app = FastAPI(
     title="FramePilot - The AI Director",
     description="Multi-camera autonomous AI video director and editing suite",
@@ -379,6 +385,17 @@ async def api_inspect_link(req: InspectLinkRequest):
         raise HTTPException(status_code=400, detail=f"فشل فحص الرابط: {str(e)}")
 
 
+@app.get("/api/import/progress/{progress_id}")
+async def import_progress(progress_id: str):
+    """Progress of a running upload, one entry per camera in order:
+    {"state": waiting | downloading | checking | ready, "done": bytes, "total": bytes or null}.
+    404 before the server has the whole form, and after the upload has finished."""
+    progress = IMPORT_PROGRESS.get(progress_id)
+    if progress is None:
+        raise HTTPException(status_code=404, detail="No upload in progress with this id.")
+    return {"cameras": [dict(cam) for cam in progress["cameras"]]}
+
+
 @app.get("/api/styles")
 def get_styles():
     """The editing styles for the upload page (configs/styles.yaml): names, descriptions, values, limits."""
@@ -410,12 +427,14 @@ async def create_project(
     sfx_volume: str = Form("medium"),
     style_json: str = Form(""),
     brand_json: str = Form(""),
+    progress_id: str = Form(""),
     logo: Optional[UploadFile] = File(None),
     intro: Optional[UploadFile] = File(None),
     outro: Optional[UploadFile] = File(None),
     music: Optional[UploadFile] = File(None),
 ):
-    """Upload or import 2 to 4 camera videos (+ metadata + brand), create project & queue job."""
+    """Upload or import 2 to 4 camera videos (+ metadata + brand), create project & queue job.
+    progress_id (optional): the page follows each camera at /api/import/progress/{progress_id}."""
     from app.downloader import stream_download_to_file, DownloadError
 
     if not consent:
@@ -486,6 +505,10 @@ async def create_project(
     session_dir = DATA_DIR / sid
     staging_dir = DATA_DIR / f".{sid}.uploading"
     committed = False
+    progress = {"cameras": [{"state": "waiting", "done": 0, "total": None} for _ in ordered_items]}
+    if PROGRESS_ID.fullmatch(progress_id or ""):
+        IMPORT_PROGRESS[progress_id] = progress
+    current_cam = 0                                    # an error while saving this camera names it (X-Failed-Camera)
     try:
         raw_dir = staging_dir / "raw"
         raw_dir.mkdir(parents=True)
@@ -493,6 +516,8 @@ async def create_project(
         # Process each camera in exact user-defined order
         for cam_idx, item in enumerate(ordered_items, start=1):
             target_cam = raw_dir / f"cam{cam_idx}.mp4"
+            current_cam = cam_idx
+            cam_progress = progress["cameras"][cam_idx - 1]
             item_type = item.get("type")
             if item_type == "file":
                 f_idx = item.get("index", item.get("file_index", 0))
@@ -504,8 +529,12 @@ async def create_project(
                 link_url = item.get("url")
                 if not link_url:
                     raise HTTPException(status_code=400, detail=f"Missing link URL for Camera {cam_idx}.")
+
+                def report(stage, done, total, cam=cam_progress):
+                    cam.update(state=stage, done=done, total=total)
+
                 try:
-                    await stream_download_to_file(link_url, target_cam, MAX_VIDEO_BYTES)
+                    await stream_download_to_file(link_url, target_cam, MAX_VIDEO_BYTES, progress_callback=report)
                 except DownloadError as de:
                     raise HTTPException(status_code=de.status_code, detail=de.message)
                 except Exception as e:
@@ -513,6 +542,8 @@ async def create_project(
                     raise HTTPException(status_code=400, detail=f"Download failed for video link: {str(e).splitlines()[0]}")
             else:
                 raise HTTPException(status_code=400, detail=f"Unsupported item type: {item_type}")
+            cam_progress["state"] = "ready"
+        current_cam = 0
 
         if brand_json or any(f and getattr(f, "filename", "") for f in (logo, intro, outro, music)):
             await save_brand(staging_dir, brand_json, logo, intro, outro, music=music)
@@ -557,7 +588,9 @@ async def create_project(
         )
         job_id = db.create_job(sid)
         committed = True
-    except HTTPException:
+    except HTTPException as e:
+        if current_cam:                                # the upload page marks this camera "Failed"
+            e.headers = {**(e.headers or {}), "X-Failed-Camera": str(current_cam)}
         shutil.rmtree(staging_dir, ignore_errors=True)
         if session_dir.exists() and not committed:
             shutil.rmtree(session_dir, ignore_errors=True)
@@ -568,6 +601,9 @@ async def create_project(
             shutil.rmtree(session_dir, ignore_errors=True)
             db.forget_project(sid)
         raise
+    finally:
+        if IMPORT_PROGRESS.get(progress_id) is progress:
+            del IMPORT_PROGRESS[progress_id]
 
     return {"job_id": job_id, "session_id": sid}
 
