@@ -3,7 +3,6 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel
 
-from ..audio.bleep import Bleeped
 from ..common.io import h264, quality, read_json, run, session_from_argv, write_json
 from ..common.paths import CONFIGS
 from ..common.schemas import Trailer
@@ -127,14 +126,11 @@ def choose(s, ask=None):
     rows = [r for r in read_json(s / "transcript.json") if r["end"] > r["start"] and r.get("speaker")]
     (mlo, mhi), (plo, phi), (slo, shi) = CFG["moments"], CFG["piece"], CFG["seconds"]
     moments, ta, te = [], "", ""
-    bleeped = Bleeped(s)                                           # the name: no bleeped word
-    note = bleeped.note()
     try:
         a = (ask or default_ask)(PROMPT.format(lo=mlo, hi=mhi, plo=plo, phi=phi, slo=slo, shi=shi,
                                                title=up.get("name") or meta["id"],
-                                               lines=numbered(rows, meta["language"])) + (f"\n{note}" if note else ""))
-        moments = pick(rows, [(m.first, m.last) for m in a.moments])
-        ta, te = bleeped.star(a.title_ar.strip()), bleeped.star(a.title_en.strip())
+                                               lines=numbered(rows, meta["language"])))
+        moments, ta, te = pick(rows, [(m.first, m.last) for m in a.moments]), a.title_ar.strip(), a.title_en.strip()
     except Exception as e:                                         # no model / bad answer: the interest curve
         print(f"  WARNING: the model could not choose the trailer ({type(e).__name__}: {str(e)[:120]})")
     if len(moments) < mlo or sum(b - a for a, b in moments) < slo * 0.75:
