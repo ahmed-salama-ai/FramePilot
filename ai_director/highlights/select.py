@@ -77,18 +77,15 @@ def default_ask(prompt):
     return chat_json(model, prompt, Picks, think=False)
 
 
-def pick(cands, language, ask=None, bleeped=None):
+def pick(cands, language, ask=None):
     """The LLM chooses and writes titles. Wrong ids are ignored, doubles removed; if it chose too few (or the LLM is
-    not available), the most interesting remaining candidates are added with fallback titles. bleeped = the session's
-    Bleeped: the model is told the bleeped words and any left in a title are starred."""
+    not available), the most interesting remaining candidates are added with fallback titles."""
     lo, hi = min(CFG["min_picks"], len(cands)), min(CFG["max_picks"], len(cands))
-    note = bleeped.note() if bleeped else ""
     by_id, chosen = {c["id"]: c for c in cands}, []
     try:
         ask = ask or default_ask
         brief = [{k: c[k] for k in ("id", "start", "end", "text", "translation")} for c in cands]
-        prompt = PROMPT.format(lo=lo, hi=hi) + json.dumps(brief, ensure_ascii=False) + (f"\n{note}" if note else "")
-        for p in ask(prompt).picks:
+        for p in ask(PROMPT.format(lo=lo, hi=hi) + json.dumps(brief, ensure_ascii=False)).picks:
             if p.id in by_id and p.id not in [c["id"] for c, _ in chosen] and len(chosen) < hi:
                 chosen.append((by_id[p.id], {"title_ar": p.title_ar.strip(), "title_en": p.title_en.strip(),
                                              "hook": p.hook.strip()}))
@@ -99,6 +96,4 @@ def pick(cands, language, ask=None, bleeped=None):
             break
         if c["id"] not in [x["id"] for x, _ in chosen]:
             chosen.append((c, fallback(c, len(chosen) + 1, language)))
-    if bleeped:
-        chosen = [(c, {k: bleeped.star(v) for k, v in t.items()}) for c, t in chosen]
     return chosen
