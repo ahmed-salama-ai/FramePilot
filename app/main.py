@@ -254,6 +254,19 @@ def check_filler_mode(mode: str) -> str:
     return mode
 
 
+def check_sound_effects(on: str, volume: str) -> Optional[Dict[str, Any]]:
+    """Sound effects on clips, highlights and the trailer: None = off, else {"on": True, "volume": low, medium or
+    high}; another volume -> 400."""
+    from ai_director.director.sfx import VOLUMES
+    if str(on).strip().lower() not in {"1", "true", "on", "yes"}:
+        return None
+    volume = (volume or "medium").strip().lower()
+    if volume not in VOLUMES:
+        raise HTTPException(status_code=400, detail={"en": f"Sound effects volume must be one of {', '.join(VOLUMES)}.",
+                                                    "ar": "مستوى صوت المؤثرات: اختر منخفض أو متوسط أو مرتفع."})
+    return {"on": True, "volume": volume}
+
+
 def parse_style(text: str) -> Optional[Dict[str, Any]]:
     """style_json from the upload form; empty = no style chosen (default.yaml as it is, the same as Balanced)."""
     if not (text or "").strip():
@@ -393,6 +406,8 @@ async def create_project(
     bleep_profanity: str = Form("false"),
     bleep_words: str = Form(""),
     filler_mode: str = Form("off"),
+    sound_effects: str = Form("false"),
+    sfx_volume: str = Form("medium"),
     style_json: str = Form(""),
     brand_json: str = Form(""),
     logo: Optional[UploadFile] = File(None),
@@ -465,6 +480,7 @@ async def create_project(
     style = parse_style(style_json)                    # checked before any video is uploaded or downloaded
     bleep_words = parse_bleep_words(bleep_words)
     filler_mode = check_filler_mode(filler_mode)
+    sound_effects = check_sound_effects(sound_effects, sfx_volume)
 
     sid = db.new_session_id()
     session_dir = DATA_DIR / sid
@@ -515,6 +531,8 @@ async def create_project(
             upload_data["style"] = style                   # preset + every value, so the edit can be made again
         if bleep_words:
             upload_data["bleep_words"] = bleep_words       # added to configs/profanity.txt for this recording
+        if sound_effects:
+            upload_data["sound_effects"] = sound_effects   # clips, highlights and the trailer (director/sfx.py)
         (staging_dir / "upload.json").write_text(
             json.dumps(upload_data, ensure_ascii=False, indent=2),
             encoding="utf-8"

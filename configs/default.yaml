@@ -55,6 +55,13 @@ trailer:
   end_card: 3.0
   music_volume: 0.2
 
+sfx:                       # sound effects on clips, highlights and the trailer (assets/sfx); turned on at upload
+  per_minute: 6            # at most this many effects in any 60 s
+  min_gap: 3.0             # at least this many seconds between two effects
+  edge: 0.5                # none in the first or last half second of a clip
+  lead: {cut: 0.05, title: 0.0, caption: 0.0}   # the sound starts this early, so its loudest part lands on the event
+  levels: {low: -10, medium: -6, high: -2}        # the effect's loudest 400 ms, dB under the speech loudness (the upload's volume)
+
 perception:
   workers: 3
   face_roles: [closeup]

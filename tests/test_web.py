@@ -212,6 +212,7 @@ def test_agent_failure_does_not_claim_clip_was_created(client, monkeypatch):
     {"wide_cam": "4"},
     {"language": "fr"},
     {"filler_mode": "aggressive"},
+    {"sound_effects": "true", "sfx_volume": "loud"},
     {"bleep_profanity": "true", "bleep_words": "x" * 61},
     {"bleep_profanity": "true", "bleep_words": "\n".join(f"word{chr(97 + i // 26)}{chr(97 + i % 26)}" for i in range(201))},
 ])
@@ -310,6 +311,31 @@ def test_upload_saves_the_filler_mode(client):
         db.update_job(job["id"], status="done")
     page = client.get("/new")
     assert 'id="fillerMode"' in page.text and 'value="conservative"' in page.text
+
+
+def test_upload_saves_the_sound_effects(client):
+    from ai_director.common.schemas import Upload
+    from ai_director.director.sfx import job_volume
+    files = [
+        ("files", ("cam1.mp4", b"camera one", "video/mp4")),
+        ("files", ("cam2.mp4", b"camera two", "video/mp4")),
+    ]
+    saved = {}
+    for on, volume in (("true", " High "), ("false", "high")):                  # off: the volume is not saved
+        res = client.post("/api/projects", files=files, data={"name": "Sound effects", "consent": "true",
+                                                              "sound_effects": on, "sfx_volume": volume})
+        assert res.status_code == 200
+        sid = res.json()["session_id"]
+        saved[on] = json.loads((SESSIONS / sid / "upload.json").read_text(encoding="utf-8"))
+        Upload.model_validate(saved[on])                                          # follows the contract
+        job = db.get_latest_job(sid)
+        if job:
+            db.update_job(job["id"], status="done")
+        assert job_volume(SESSIONS / sid) == ("high" if on == "true" else None)   # what the clips will use
+    assert saved["true"]["sound_effects"] == {"on": True, "volume": "high"}
+    assert "sound_effects" not in saved["false"]
+    page = client.get("/new").text
+    assert 'id="soundEffects"' in page and 'id="sfxVolume"' in page and 'data-i18n="label_sfx"' in page
 
 
 def test_new_project_page_has_the_editing_style(client):
