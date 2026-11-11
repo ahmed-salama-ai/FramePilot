@@ -13,6 +13,7 @@ from ai_director.director.brand import caption_fields, load_brand, logo_overlay
 from ai_director.director.cards import name_cards
 from ai_director.director.filler_cuts import FPS, cut_settings, drop_cut_words
 from ai_director.director.pauses import fit_cuts, keep_parts, out_time
+from ai_director.director.sfx import SFX_DIR, job_volume, mix_lines, plan_clip
 from ai_director.director.zoom import zoom_filter, zoom_plan
 from ai_director.ingest.probe import probe
 
@@ -427,8 +428,9 @@ def crop_11(crop_x, w=1280, h=720):
 CROPS = {"9:16": crop_916, "1:1": crop_11}             # the formats cut out of a 16:9 camera around the face
 
 
-def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop_x=None, langs="ar+en"):
-    """One short clip"""
+def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop_x=None, langs="ar+en", sfx=None):
+    """One short clip. sfx = sound effects: None = as chosen at upload (job_volume), False = none, or a volume
+    ("low" / "medium" / "high")."""
     meta = read_json(session_dir / "session.json")
     if not 0 <= start < end <= meta["duration"] + 0.05:
         raise ValueError(f"clip {start}-{end} s is not inside the video (0-{meta['duration']} s)")
@@ -480,9 +482,23 @@ def render_clip(session_dir, start, end, out, fmt="16:9", source="program", crop
         scale, over = logo_overlay(b, inputs, width, "v")
         graph = graph[:-3] + "[base];" + scale + "[base][logo]" + over
         cmd += ["-i", b["logo"]]
-    run(cmd + ["-filter_complex", graph, "-map", "[v]", "-map", f"{audio_in}:a", "-t", f"{end - start:.2f}",
+        inputs += 1
+    volume = job_volume(session_dir) if sfx is None else (sfx or None)
+    effects = plan_clip(session_dir, start, end, fmt, source, langs, volume) if volume else []
+    if effects:                         #sound effects: added in this same run, after the loudness filter (and the voice
+        cmd += [x for e in effects for x in ("-i", str(SFX_DIR / e["sound"]))]          #cleaner, which would dull them)
+        lf = loudness_filter(session_dir)
+        speech = f"[{audio_in}:a]"
+        if lf:
+            graph += f";{speech}{lf}[sp]"
+            speech = "[sp]"
+        graph += ";" + ";".join(mix_lines(effects, inputs, speech, "aout"))
+        sound, audio = ["-map", "[aout]"], ["-c:a", "aac", "-b:a", "192k"]
+    else:
+        sound, audio = ["-map", f"{audio_in}:a"], audio_args(session_dir)
+    run(cmd + ["-filter_complex", graph, "-map", "[v]", *sound, "-t", f"{end - start:.2f}",
                *h264(quality("clips")),
-               *audio_args(session_dir), "-movflags", "+faststart", out],
+               *audio, "-movflags", "+faststart", out],
         cwd=session_dir)                                                           #faststart: plays in a browser at once
     ass.unlink(missing_ok=True)
     return session_dir / out

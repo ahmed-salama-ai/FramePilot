@@ -8,6 +8,7 @@ from ..common.paths import CONFIGS
 from ..common.schemas import Trailer
 from ..director.brand import ass_colour, load_brand, logo_overlay
 from ..director.render import has_audio, render_clip
+from ..director.sfx import SFX_DIR, job_volume, mix_lines, plan_trailer
 from ..ingest.probe import probe
 from .interest import CFG as HCFG
 
@@ -158,8 +159,9 @@ def card_ass(path, w, h, lang, title, brand):
         f"{rtl}{END_WORDS[lang]}\\N{{\\r}}{rtl}{esc(title)}", ""]), encoding="utf-8-sig")
 
 
-def join(s, parts, out, lang, title, brand):
-    """parts (clip files) -> out: fades through black, the end card, the brand outro, the brand music under it."""
+def join(s, parts, out, lang, title, brand, effects=None):
+    """parts (clip files) -> out: fades through black, the end card, the brand outro, the brand music under it.
+    effects = sound effects in the trailer's time (sfx.plan_trailer), mixed in before the music."""
     w, h = (probe(s / parts[0])[k] for k in ("width", "height"))
     fade, card = CFG.get("fade", 0.25), CFG.get("end_card", 3.0)
     lens = [probe(s / p)["duration"] for p in parts]
@@ -198,6 +200,11 @@ def join(s, parts, out, lang, title, brand):
         total += od
         k += 1
     graph.append("".join(f"[v{x}][a{x}]" for x in order) + f"concat=n={len(order)}:v=1:a=1[v][talk]")
+    if effects:                                                     # a whoosh at every join, the hit on the end card
+        graph[-1] = graph[-1].replace("[v][talk]", "[v][talk0]")
+        inputs += [x for e in effects for x in ("-i", str(SFX_DIR / e["sound"]))]
+        graph += mix_lines(effects, k, "[talk0]", "talk")
+        k += len(effects)
     if brand.get("music"):                                          # quiet music, pushed down while people talk
         inputs += ["-stream_loop", "-1", "-i", brand["music"]]
         graph.append(f"[{k}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
@@ -224,19 +231,22 @@ def render_trailer(s, moments, title_ar, title_en):
     feats = pd.read_parquet(s / "features.parquet") if (s / "features.parquet").exists() else pd.DataFrame(
         columns=["t", "cam", "face_area", "face_x"])
     (s / "trailer").mkdir(exist_ok=True)
+    volume = job_volume(s)                          # sound effects: a whoosh at every join, the hit on the end card
     files = {}
     for fmt, tag in (("16:9", "169"), ("9:16", "916")):
         parts = []
         for k, (a, b) in enumerate(moments):
             part = f"tmp/trailer_{k}_{tag}.mp4"
             if fmt == "16:9":
-                render_clip(s, a, b, part, fmt="16:9")
+                render_clip(s, a, b, part, fmt="16:9", sfx=False)
             else:
                 source, crop_x = vertical_source(s, a, b, cuts, feats)
-                render_clip(s, a, b, part, fmt="9:16", source=source, crop_x=crop_x)
+                render_clip(s, a, b, part, fmt="9:16", source=source, crop_x=crop_x, sfx=False)
             parts.append(part)
+        effects = plan_trailer(s, [a for a, _ in moments], [probe(s / p)["duration"] for p in parts],
+                               volume) if volume else None
         out = f"trailer/trailer_{tag}.mp4"
-        join(s, parts, out, lang, title_ar if lang == "ar" else title_en, brand)
+        join(s, parts, out, lang, title_ar if lang == "ar" else title_en, brand, effects=effects)
         for p in parts:
             (s / p).unlink(missing_ok=True)
         files[fmt] = out

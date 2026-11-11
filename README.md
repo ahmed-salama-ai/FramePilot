@@ -93,6 +93,9 @@ plus a close-up camera for each seat.
   caught with an attached start (ال، و، ف، ب، يا) or a feminine/plural ending (ة، ين، ات). Only whole words match:
   everyday words that merely contain a listed word are left alone. See
   [Profanity bleeping](#8-profanity-bleeping).
+- **Sound effects** (optional, off by default). In clips and highlights a whoosh when the picture changes and a soft
+  pop when a new caption line appears; in the trailer a whoosh at every join and a bell on the end card. Never in the
+  full video. Low, Medium or High, set at upload. See [Sound effects](#12-sound-effects).
 
 ### Brand kit
 
@@ -349,11 +352,12 @@ FramePilot/
 │   ├── audio/        voice activity, transcription, speakers, translation, captions, laughter, caption editing, profanity bleeping
 │   ├── perception/   people (YOLO pose), faces and mouths (MediaPipe), speaker to camera matching
 │   ├── brain/        scene modes from the vision-language model
-│   ├── director/     scorer, switcher, split screen, render, pauses, zoom, cold open, name cards, brand, exports
+│   ├── director/     scorer, switcher, split screen, render, pauses, zoom, cold open, name cards, brand, exports, sound effects
 │   ├── highlights/   interest curve, highlight picks, clips, trailer, publish kit, article
 │   ├── agent/        Editor Agent: chat loop, tools, transcript search
 │   └── pipeline.py   runs the stages in order
 ├── app/              FastAPI web app: pages, static files, background worker, SQLite database
+├── assets/sfx/       sound effects (CC0; SOURCES.md lists each file's source and license)
 ├── configs/          default.yaml (all settings), modes.yaml (score multipliers), profanity.txt (bleep wordlist)
 ├── eval/             evaluation stage: speaker coverage, agreement with a human edit, highlight precision
 ├── samples/mock_s00/ a small fake session with every contract file, used by the tests
@@ -653,6 +657,54 @@ pytest tests/test_square.py tests/test_highlights.py tests/test_strip.py
 pytest tests/test_agent.py -k "square or format"
 ```
 
+### 12. Sound effects
+
+Tick **Add sound effects** on the upload page and choose a volume (or add `"sound_effects": {"on": true, "volume":
+"medium"}` to `upload.json`). It is off by default and set per recording. Effects go on the highlights (16:9, 9:16,
+1:1), the Editor Agent's clips and the trailer, never on the full video.
+
+| Where | Sound | When |
+|---|---|---|
+| Clips and highlights | whoosh | the picture changes: another camera, a split screen starting or ending (16:9), the crop moving to another person (9:16, 1:1) |
+| Clips and highlights | pop | a new caption line appears (none when the clip has no captions) |
+| Trailer | whoosh | every join, where one moment ends and the next begins |
+| Trailer | hit (a bell) | the end card appears |
+
+**How many.** In clips and highlights: none in the first or last 0.5 s, at least 3 s apart, and at most 6 in any
+minute, a rate, so a 35 s highlight gets 3. A cut wins over a caption line, and the effects are spread out (the next
+one is the moment farthest from those already chosen). The two whooshes and the two pops take turns, and a whoosh
+starts 50 ms early so its loudest part lands on the cut. The trailer has no limits: every join and the end card get
+one, and nothing inside the moments does.
+
+**How loud.** The volume sets how far each effect's loudest 400 ms (EBU momentary loudness) sits under the speech's
+-14 LUFS while somebody talks or laughs: Low 10 dB, Medium 6 dB, High 2 dB. In a pause, and on the trailer's end card,
+an effect plays 3 dB louder (`duck`): effects are lowered while someone speaks, but only a little, because a bigger drop
+made them inaudible in a talk show, where somebody nearly always talks. The effects are added after the loudness
+filter and the voice cleaner (which would dull them). A limiter at -1 dBFS keeps an effect on a loud word from
+clipping. With effects off, clips and the trailer are made with exactly the same FFmpeg commands as before.
+
+**The sounds** are in `assets/sfx/`: two whooshes, two pops and one hit, all CC0, with each file's source and license
+in `SOURCES.md`. Each is trimmed, faded (3 ms in, 10 ms out) and set so its loudest 400 ms is -21 LUFS (Ogg Vorbis,
+48 kHz stereo). To change one, keep the file name and format, set it to that loudness and update its row in
+`SOURCES.md`; `tests/test_sfx.py` checks all of this. The end-card hit is a bell because a phone speaker keeps it: the
+first pick, a deep thump, lost about 23 dB without bass, the bell 1 dB.
+
+On s01 (4 highlights in 3 formats and the trailer in 2, at Medium): 36 effects in 7.2 minutes of highlights (5 a
+minute) and 5 in the trailer. Every sound starts within 20 ms of its moment, and a whoosh is loudest 10-40 ms before its
+cut. The effects sit a median 6-7 dB (pops) and 2-3 dB (whooshes) under the speech at that moment, 10 dB at most, and
+about the same through a phone-speaker filter. 3 of the 46 fell in a pause (one whoosh and the trailer's end-card bell)
+and play 3 dB louder there. The loudest peak is -0.8 dBFS. Effects add 0.5-0.9 s to a highlight clip (+26% for the 12
+clips) and 0.2 s to each trailer format.
+
+Known limits: 9:16 and 1:1 clips rarely change picture, so they get mostly pops. The whooshes are short (0.11 s).
+
+Test it:
+
+```bash
+pytest tests/test_sfx.py tests/test_trailer.py
+pytest tests/test_web.py -k sound_effects
+```
+
 ### Or use the command line
 
 Create a session folder with the camera files and an `upload.json`:
@@ -749,6 +801,7 @@ The editing style chosen at upload (`configs/styles.yaml`, see [Editing styles](
 | `audio` | `translate_model`, `speaker_model`, `english_words_model` | Gemini models | cloud models; `null` uses the local model instead (translation) or turns the step off (English words) |
 | `bleep` | `hz`, `pad`, `fade` | `1000`, `0.07`, `0.02` | beep pitch, extra time around each matched word, fade at each beep edge. The wordlist is `configs/profanity.txt` (or `profanity.txt` in the session folder). Turned on per recording with `bleep_profanity` at upload |
 | `configs/fillers.yaml` | `rule`, `cut`, the word lists | see the file | which words are fillers, and how they are cut. Turned on per recording with `filler_mode` at upload. See [Filler word removal](#10-filler-word-removal) |
+| `sfx` | `per_minute`, `min_gap`, `edge`, `levels`, `duck` | `6`, `3.0`, `0.5`, low -10 / medium -6 / high -2, `3` | sound effects in clips and highlights: at most this many a minute, seconds apart, none this near the edges; dB under the speech for each volume while people talk; dB louder in a pause. Turned on per recording with `sound_effects` at upload. See [Sound effects](#12-sound-effects) |
 | `ollama` | `text_model`, `vision_model`, `embed_model` | `qwen3:8b`, `qwen3-vl:4b-instruct`, `bge-m3` | local models |
 | `brain` | `every_seconds` | `5` | one scene label every 5 seconds |
 | `agent` | `max_clips`, `clip_seconds`, `timeout` | `3`, `[5, 180]`, `120` | clips per request, allowed clip length, seconds before an LLM request gives up |

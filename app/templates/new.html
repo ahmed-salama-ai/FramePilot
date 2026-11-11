@@ -133,6 +133,25 @@
       </small>
     </div>
 
+    <div class="form-group">
+      <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+        <input type="checkbox" id="soundEffects" name="sound_effects"
+          style="width: 18px; height: 18px; margin-top: 3px; accent-color: var(--accent-orange);">
+        <span style="font-size: 0.92rem; color: var(--text-bright);" data-i18n="label_sfx">إضافة مؤثرات صوتية</span>
+      </label>
+      <small class="form-hint" style="display: block; margin-top: 6px;" data-i18n="sfx_hint">
+        في الكليبات واللقطات المميزة: صوت "ووش" عند تغيّر اللقطة وصوت خفيف عند ظهور سطر ترجمة جديد. في الإعلان: "ووش" بين المقاطع وضربة عند البطاقة الأخيرة. لا تُضاف إلى الفيديو الكامل. الإعداد مغلق افتراضياً.
+      </small>
+      <div id="sfxVolumeBox" style="margin-top: 12px;" hidden>
+        <label class="form-label" for="sfxVolume" data-i18n="label_sfx_volume">مستوى صوت المؤثرات</label>
+        <select id="sfxVolume" name="sfx_volume" class="form-control">
+          <option value="low" data-i18n="sfx_low">منخفض: أخفض بوضوح من صوت الكلام</option>
+          <option value="medium" selected data-i18n="sfx_medium">متوسط</option>
+          <option value="high" data-i18n="sfx_high">مرتفع: قريب من صوت الكلام</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Drag & Drop Zone -->
     <div class="form-group">
       <label class="form-label" data-i18n="label_camera_videos">Camera Recordings (2 to 4 cameras) *</label>

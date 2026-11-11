@@ -20,6 +20,11 @@ class Style(BaseModel):                       # upload.json -> style: the editin
     config: dict = {}                         # the settings over default.yaml for this job (common/config.py)
 
 
+class SoundEffects(BaseModel):                # upload.json -> sound_effects: on clips, highlights, the trailer (Task 4)
+    on: bool = False
+    volume: Literal["low", "medium", "high"] = "medium"   # how far under the speech (default.yaml sfx.levels)
+
+
 class Upload(BaseModel):                      # upload.json (web app → ingest)
     name: str
     language: Literal["ar", "en"]
@@ -32,6 +37,7 @@ class Upload(BaseModel):                      # upload.json (web app → ingest)
     bleep_profanity: bool = False             # replace listed swear words with a beep in the video and clips
     bleep_words: list[str] = []               # extra words to bleep in this recording, typed at upload
     filler_mode: Literal["off", "conservative", "standard"] = "off"   # remove filler words (configs/fillers.yaml)
+    sound_effects: SoundEffects | None = None # None = off (director/sfx.py)
 
 
 class Camera(BaseModel):

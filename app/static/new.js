@@ -21,6 +21,15 @@ document.addEventListener("DOMContentLoaded", () => {
     showBleepWords();
   }
 
+  // Sound effects: the volume shows only while "Add sound effects" is ticked
+  const sfxToggle = document.getElementById("soundEffects");
+  const sfxVolumeBox = document.getElementById("sfxVolumeBox");
+  if (sfxToggle && sfxVolumeBox) {
+    const showSfxVolume = () => { sfxVolumeBox.hidden = !sfxToggle.checked; };
+    sfxToggle.addEventListener("change", showSfxVolume);
+    showSfxVolume();
+  }
+
   // Modern (+) Popover & Link Input elements
   const addSourceBtn = document.getElementById("addSourceBtn");
   const addSourceMenu = document.getElementById("addSourceMenu");
@@ -519,6 +528,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const fillerEl = document.getElementById("fillerMode");
     formData.append("filler_mode", fillerEl ? fillerEl.value : "off");
+    const sfxEl = document.getElementById("soundEffects");
+    const sfxVolumeEl = document.getElementById("sfxVolume");
+    formData.append("sound_effects", sfxEl && sfxEl.checked ? "true" : "false");
+    if (sfxEl && sfxEl.checked && sfxVolumeEl) formData.append("sfx_volume", sfxVolumeEl.value);
     if (style.value) formData.append("style_json", JSON.stringify(style.value));
 
     if (typeof readBrandForm === "function") {
